@@ -187,13 +187,13 @@ class InteractiveConfig:
                     print("  4. 创建API密钥，保存 API Key 和 Secret")
                     print("\n  💡 或者选择OKX模拟交易（更简单）:")
                     print("  1. 访问: https://www.okx.com/")
-                    print("  2. 登录后进入"模拟交易"")
+                    print("  2. 登录后进入'模拟交易'")
                     print("  3. 创建模拟交易API密钥")
                 else:  # OKX
                     print("\n  💎 OKX模拟交易获取步骤:")
                     print("  1. 访问: https://www.okx.com/")
                     print("  2. 登录账号")
-                    print("  3. 进入"模拟交易"或"Demo Trading"")
+                    print("  3. 进入'模拟交易'或'Demo Trading'")
                     print("  4. 创建模拟交易API密钥（包含API Key、Secret、Passphrase）")
                 print("\n  ❗ 确保使用的是测试网/模拟交易的API密钥，而非正式网API密钥")
             else:
