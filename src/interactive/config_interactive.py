@@ -5,7 +5,14 @@
 
 from typing import Dict, Tuple, Optional
 import questionary
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+
 from exchanges import ExchangeFactory
+from utils.indicators import TechnicalIndicators, ATRResult
+
+console = Console()
 
 
 class InteractiveConfig:
@@ -108,35 +115,75 @@ class InteractiveConfig:
         return answer
 
     @staticmethod
-    async def input_strategy_parameters() -> Dict[str, float]:
-        """输入策略参数"""
+    async def input_strategy_parameters(atr_result: Optional[ATRResult] = None) -> Dict[str, float]:
+        """
+        输入策略参数，支持基于ATR的建议
+        
+        Args:
+            atr_result: ATR计算结果（可选）
+        
+        Returns:
+            策略参数字典
+        """
         params = {}
 
         print("\n" + "=" * 60)
         print("策略参数配置")
         print("=" * 60)
 
+        # 如果有ATR结果，显示基于ATR的建议
+        suggested_params = None
+        if atr_result:
+            suggested_params = TechnicalIndicators.get_suggested_params_from_atr(atr_result)
+            console.print("\n[bold cyan]基于ATR的参数建议:[/bold cyan]")
+            console.print(f"ATR占比: {atr_result.atr_percentage:.2f}% (波动性: {atr_result.volatility})")
+            console.print(f"建议上涨阈值: {suggested_params['long_threshold'] * 100:.2f}%")
+            console.print(f"建议下跌阈值: {suggested_params['short_threshold'] * 100:.2f}%")
+            console.print(f"建议止损比例: {suggested_params['stop_loss_ratio'] * 100:.2f}%")
+            console.print("=" * 60)
+
         # 上涨阈值
+        default_value = ""
+        instruction = "输入 0.1-99.9 之间的数字"
+        if suggested_params:
+            default_value = str(suggested_params['long_threshold'] * 100)
+            instruction = f"基于ATR建议: {default_value}%"
+
         params['long_threshold'] = await questionary.text(
             "上涨阈值（百分比，输入 2 表示 2%）:",
+            default=default_value,
             validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0 and float(x) < 100,
-            instruction="输入 0.1-99.9 之间的数字"
+            instruction=instruction
         ).ask_async()
         params['long_threshold'] = float(params['long_threshold']) / 100
 
         # 下跌阈值
+        default_value = ""
+        instruction = "输入 0.1-99.9 之间的数字"
+        if suggested_params:
+            default_value = str(suggested_params['short_threshold'] * 100)
+            instruction = f"基于ATR建议: {default_value}%"
+
         params['short_threshold'] = await questionary.text(
             "下跌阈值（百分比，输入 2 表示 2%）:",
+            default=default_value,
             validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0 and float(x) < 100,
-            instruction="输入 0.1-99.9 之间的数字"
+            instruction=instruction
         ).ask_async()
         params['short_threshold'] = float(params['short_threshold']) / 100
 
         # 止损比例
+        default_value = ""
+        instruction = "输入 0.1-99.9 之间的数字"
+        if suggested_params:
+            default_value = str(suggested_params['stop_loss_ratio'] * 100)
+            instruction = f"基于ATR建议: {default_value}%"
+
         params['stop_loss_ratio'] = await questionary.text(
             "止损比例（百分比，输入 5 表示 5%）:",
+            default=default_value,
             validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0 and float(x) < 100,
-            instruction="输入 0.1-99.9 之间的数字"
+            instruction=instruction
         ).ask_async()
         params['stop_loss_ratio'] = float(params['stop_loss_ratio']) / 100
 

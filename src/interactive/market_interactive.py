@@ -9,6 +9,8 @@ from rich.live import Live
 from rich.layout import Layout
 import time
 
+from utils.indicators import TechnicalIndicators, ATRResult
+
 console = Console()
 
 
@@ -127,6 +129,38 @@ class MarketInteractive:
         }
 
     @staticmethod
+    def display_atr_panel(atr_result: ATRResult):
+        """显示ATR信息面板"""
+        # 波动性颜色
+        volatility_colors = {
+            "低": "green",
+            "中": "yellow",
+            "高": "red"
+        }
+        volatility_color = volatility_colors.get(atr_result.volatility, "white")
+
+        atr_text = f"""
+[bold cyan]ATR（平均真实波幅）分析[/bold cyan]
+
+当前价格: [yellow]${atr_result.current_price:.2f}[/yellow]
+ATR({atr_result.period}): [cyan]${atr_result.atr:.2f}[/cyan]
+ATR占比: [cyan]{atr_result.atr_percentage:.2f}%[/cyan]
+波动性等级: [{volatility_color}] {atr_result.volatility} [/{volatility_color}]
+"""
+        
+        # 波动性说明
+        if atr_result.volatility == "低":
+            desc = "[dim]市场波动较小，适合较小阈值策略[/dim]"
+        elif atr_result.volatility == "中":
+            desc = "[dim]市场波动适中，建议设置中等阈值[/dim]"
+        else:
+            desc = "[dim]市场波动较大，建议设置较大阈值并提高止损[/dim]"
+        
+        atr_text += desc
+
+        console.print(Panel(atr_text, border_style="cyan"))
+
+    @staticmethod
     def display_trading_cost(cost: Dict[str, float]):
         """显示交易成本"""
         table = Table(title="交易成本计算", show_header=True, header_style="bold magenta")
@@ -181,7 +215,7 @@ class MarketInteractive:
         return confirm == 'y'
 
 
-async def select_symbol_interactive(exchange, popular_symbols: List[str] = None) -> Optional[str]:
+async def select_symbol_interactive(exchange, popular_symbols: List[str] = None) -> tuple[Optional[str], Optional[ATRResult]]:
     """
     交互式选择交易对
     
@@ -190,7 +224,7 @@ async def select_symbol_interactive(exchange, popular_symbols: List[str] = None)
         popular_symbols: 热门交易对列表（优先显示）
     
     Returns:
-        选中的交易对符号
+        (选中的交易对符号, ATR结果)
     """
     console.print("\n[bold cyan]正在获取市场行情...[/bold cyan]\n")
     
@@ -237,7 +271,25 @@ async def select_symbol_interactive(exchange, popular_symbols: List[str] = None)
 
     if not symbols_data:
         console.print("[red]未能获取到任何交易对数据[/red]")
-        return None
+        return None, None
 
     # 显示并选择交易对
-    return MarketInteractive.display_market_list(symbols_data)
+    selected_symbol = MarketInteractive.display_market_list(symbols_data)
+    
+    # 如果选择了交易对，显示ATR信息
+    if selected_symbol:
+        console.print(f"\n[bold cyan]正在计算ATR（平均真实波幅）...[/bold cyan]")
+        try:
+            # 计算ATR（使用1小时K线，14周期）
+            atr_result = TechnicalIndicators.get_atr_with_timeframe(
+                exchange, selected_symbol, timeframe='1h', period=14
+            )
+            MarketInteractive.display_atr_panel(atr_result)
+            
+            return selected_symbol, atr_result
+            
+        except Exception as e:
+            console.print(f"[yellow]计算ATR失败: {e}[/yellow]")
+            return selected_symbol, None
+    
+    return None, None

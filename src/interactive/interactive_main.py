@@ -5,6 +5,7 @@
 
 import asyncio
 import sys
+import questionary
 from rich.console import Console
 
 from exchanges import ExchangeFactory
@@ -62,7 +63,7 @@ async def interactive_wizard():
         'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT',
         'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'
     ]
-    symbol = await select_symbol_interactive(exchange, popular_symbols)
+    symbol, atr_result = await select_symbol_interactive(exchange, popular_symbols)
     
     if not symbol:
         console.print("[yellow]未选择交易对，程序退出[/yellow]")
@@ -77,7 +78,7 @@ async def interactive_wizard():
     console.print("\n[bold cyan]步骤 4/5: 配置策略[/bold cyan]")
     
     strategy_type = await InteractiveConfig.select_strategy()
-    params = await InteractiveConfig.input_strategy_parameters()
+    params = await InteractiveConfig.input_strategy_parameters(atr_result)
     
     # 步骤5: 计算交易成本
     console.print("\n[bold cyan]步骤 5/5: 交易成本计算[/bold cyan]")
