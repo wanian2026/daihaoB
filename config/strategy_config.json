@@ -1,0 +1,12 @@
+{
+  "strategy": {
+    "exchange": "binance",
+    "symbol": "BTC/USDT",
+    "long_threshold": 0.02,
+    "short_threshold": 0.02,
+    "stop_loss_ratio": 0.05,
+    "position_size": 100,
+    "leverage": 1,
+    "monitor_interval": 1
+  }
+}

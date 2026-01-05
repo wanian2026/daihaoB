@@ -1,0 +1,16 @@
+{
+  "exchanges": {
+    "binance": {
+      "api_key": "YOUR_BINANCE_API_KEY",
+      "secret": "YOUR_BINANCE_SECRET",
+      "passphrase": null,
+      "sandbox": false
+    },
+    "okx": {
+      "api_key": "YOUR_OKX_API_KEY",
+      "secret": "YOUR_OKX_SECRET",
+      "passphrase": "YOUR_OKX_PASSPHRASE",
+      "sandbox": false
+    }
+  }
+}
