@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>合约信号扫描系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .signal-long { border-left: 4px solid #10b981; }
+        .signal-short { border-left: 4px solid #ef4444; }
+        .confidence-high { background: linear-gradient(90deg, #10b981 0%, transparent 100%); }
+        .confidence-medium { background: linear-gradient(90deg, #f59e0b 0%, transparent 100%); }
+        .confidence-low { background: linear-gradient(90deg, #6b7280 0%, transparent 100%); }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-mono" x-data="scannerApp()" x-cloak>
+
+<div class="max-w-7xl mx-auto p-6">
+    <!-- 标题栏 -->
+    <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+        <div>
+            <h1 class="text-2xl font-bold">🎯 合约信号扫描系统</h1>
+            <p class="text-sm text-gray-400 mt-1">基于 FVG 和流动性分析的智能交易信号</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full" :class="scanning ? 'bg-green-500 animate-pulse' : 'bg-gray-500'"></div>
+                <span class="text-sm" x-text="scanning ? '扫描中...' : '就绪'"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- API配置 -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-lg font-bold border-b border-gray-700 pb-1">🔌 API 配置</h2>
+            <button @click="showApiConfig = !showApiConfig" class="text-sm text-gray-400 hover:text-white">
+                <span x-text="showApiConfig ? '▼ 收起' : '▶ 展开'"></span>
+            </button>
+        </div>
+        <div x-show="showApiConfig" class="bg-gray-800 border border-gray-700 p-6 rounded-lg">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="text-xs text-gray-400 uppercase block mb-1">交易所</label>
+                    <select x-model="apiConfig.exchange" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
+                        <option value="okx">欧易 (OKX)</option>
+                        <option value="binance">币安 (Binance)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400 uppercase block mb-1">交易模式</label>
+                    <select x-model="apiConfig.testnet" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
+                        <option :value="true">🧪 模拟交易</option>
+                        <option :value="false">💎 真实交易</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400 uppercase block mb-1">API Key</label>
+                    <input type="text" x-model="apiConfig.api_key" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white" placeholder="输入 API Key">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400 uppercase block mb-1">Secret</label>
+                    <input type="password" x-model="apiConfig.secret" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white" placeholder="输入 Secret">
+                </div>
+                <div x-show="apiConfig.exchange === 'okx'" class="col-span-2">
+                    <label class="text-xs text-gray-400 uppercase block mb-1">Password</label>
+                    <input type="password" x-model="apiConfig.password" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white" placeholder="输入 Password（OKX 必填）">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button @click="testConnection()" :disabled="testingConnection" class="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-600">
+                    <span x-show="!testingConnection">🔌 测试连接</span>
+                    <span x-show="testingConnection">测试中...</span>
+                </button>
+                <button @click="saveApiConfig()" class="px-4 py-2 bg-gray-600 text-white text-sm hover:bg-gray-700">
+                    💾 保存配置
+                </button>
+            </div>
+            <div x-show="connectionStatus.message" class="mt-3 p-3 rounded" :class="connectionStatus.connected ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'" x-text="connectionStatus.message"></div>
+        </div>
+    </div>
+
+    <!-- 扫描控制 -->
+    <div class="mb-6 bg-gray-800 border border-gray-700 p-6 rounded-lg">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-1">🔍 扫描控制</h2>
+                <p class="text-sm text-gray-400">扫描所有合约，识别交易机会</p>
+            </div>
+            <div class="flex gap-2">
+                <select x-model="scanLimit" class="bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
+                    <option :value="20">扫描 20 个合约</option>
+                    <option :value="50">扫描 50 个合约</option>
+                    <option :value="100">扫描 100 个合约</option>
+                </select>
+                <button @click="startScan()" :disabled="scanning" class="px-6 py-2 bg-green-600 text-white text-sm font-bold hover:bg-green-700 disabled:bg-gray-600">
+                    <span x-show="!scanning">🚀 开始扫描</span>
+                    <span x-show="scanning">扫描中...</span>
+                </button>
+                <button @click="refreshScan()" :disabled="scanning" class="px-6 py-2 bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:bg-gray-600">
+                    🔄 刷新
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 扫描统计 -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
+            <p class="text-xs text-gray-400 uppercase">已扫描</p>
+            <p class="text-2xl font-bold mt-1" x-text="scanStats.scanned || 0"></p>
+        </div>
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
+            <p class="text-xs text-gray-400 uppercase">发现信号</p>
+            <p class="text-2xl font-bold mt-1 text-green-500" x-text="signals.length || 0"></p>
+        </div>
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
+            <p class="text-xs text-gray-400 uppercase">最高信心</p>
+            <p class="text-2xl font-bold mt-1" x-text="scanStats.max_confidence ? scanStats.max_confidence.toFixed(1) + '%' : '-'"></p>
+        </div>
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
+            <p class="text-xs text-gray-400 uppercase">扫描时间</p>
+            <p class="text-sm font-bold mt-1" x-text="scanStats.time || '-'"></p>
+        </div>
+    </div>
+
+    <!-- 信号列表 -->
+    <div>
+        <h2 class="text-lg font-bold border-b border-gray-700 pb-1 mb-4">📊 交易信号</h2>
+
+        <!-- 无信号提示 -->
+        <div x-show="!loading && signals.length === 0" class="bg-gray-800 border border-gray-700 p-12 rounded-lg text-center">
+            <p class="text-gray-400 text-lg">暂无交易信号</p>
+            <p class="text-gray-500 text-sm mt-2">点击"开始扫描"开始寻找交易机会</p>
+        </div>
+
+        <!-- 加载提示 -->
+        <div x-show="loading" class="bg-gray-800 border border-gray-700 p-12 rounded-lg text-center">
+            <div class="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-gray-400 text-lg" x-text="loadingMessage || '扫描中...'"></p>
+        </div>
+
+        <!-- 信号卡片列表 -->
+        <div x-show="!loading && signals.length > 0" class="space-y-4">
+            <template x-for="(signal, index) in signals" :key="index">
+                <div class="bg-gray-800 border border-gray-700 p-5 rounded-lg hover:border-gray-600 transition-colors"
+                     :class="signal.direction === 'long' ? 'signal-long' : 'signal-short'">
+
+                    <!-- 信号头部 -->
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl font-bold" x-text="signal.symbol"></span>
+                            <span class="px-3 py-1 rounded text-xs font-bold"
+                                  :class="signal.direction === 'long' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'"
+                                  x-text="signal.direction === 'long' ? '📈 做多' : '📉 做空'"></span>
+                            <span class="px-3 py-1 rounded text-xs font-bold"
+                                  :class="signal.confidence >= 70 ? 'bg-green-900 text-green-300' : (signal.confidence >= 50 ? 'bg-yellow-900 text-yellow-300' : 'bg-gray-700 text-gray-300')"
+                                  x-text="'信心度: ' + signal.confidence.toFixed(1) + '%'"></span>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-400">盈亏比</p>
+                            <p class="text-xl font-bold"
+                               :class="signal.risk_reward_ratio >= 2 ? 'text-green-500' : 'text-yellow-500'"
+                               x-text="signal.risk_reward_ratio ? '1:' + signal.risk_reward_ratio.toFixed(1) : '-'"></p>
+                        </div>
+                    </div>
+
+                    <!-- 价格信息 -->
+                    <div class="grid grid-cols-4 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase">入场价</p>
+                            <p class="text-lg font-bold" x-text="signal.entry_price.toFixed(2)"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase">止盈价</p>
+                            <p class="text-lg font-bold text-green-400" x-text="signal.take_profit ? signal.take_profit.toFixed(2) : '-'"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase">止损价</p>
+                            <p class="text-lg font-bold text-red-400" x-text="signal.stop_loss ? signal.stop_loss.toFixed(2) : '-'"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase">交易所</p>
+                            <p class="text-lg font-bold" x-text="signal.exchange === 'okx' ? '欧易' : '币安'"></p>
+                        </div>
+                    </div>
+
+                    <!-- 信心度条 -->
+                    <div class="mb-4">
+                        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500"
+                                 :class="signal.confidence >= 70 ? 'bg-green-500' : (signal.confidence >= 50 ? 'bg-yellow-500' : 'bg-gray-500')"
+                                 :style="'width: ' + signal.confidence + '%'"></div>
+                        </div>
+                    </div>
+
+                    <!-- 详细信息折叠 -->
+                    <div>
+                        <button @click="toggleDetail(index)" class="text-sm text-blue-400 hover:text-blue-300">
+                            <span x-text="showDetail[index] ? '▼ 收起详情' : '▶ 查看详情'"></span>
+                        </button>
+
+                        <div x-show="showDetail[index]" class="mt-4 p-4 bg-gray-900 rounded-lg">
+                            <!-- FVG 信息 -->
+                            <div x-show="signal.fvg_info" class="mb-4">
+                                <h3 class="text-sm font-bold mb-2">📐 FVG 信息</h3>
+                                <div class="grid grid-cols-3 gap-4 text-sm">
+                                    <div>
+                                        <p class="text-gray-400">类型</p>
+                                        <p x-text="signal.fvg_info.type.toUpperCase()"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-400">缺口范围</p>
+                                        <p x-text="signal.fvg_info.gap_low.toFixed(2) + ' - ' + signal.fvg_info.gap_high.toFixed(2)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-400">缺口大小</p>
+                                        <p x-text="signal.fvg_info.size.toFixed(2)"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 流动性信息 -->
+                            <div x-show="signal.liquidity_info" class="mb-4">
+                                <h3 class="text-sm font-bold mb-2">💧 流动性分析</h3>
+                                <div class="grid grid-cols-3 gap-4 text-sm">
+                                    <div>
+                                        <p class="text-gray-400">流动性评分</p>
+                                        <p x-text="signal.liquidity_info.liquidity_score.toFixed(1) + '/100'"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-400">买卖不平衡</p>
+                                        <p :class="signal.liquidity_info.imbalance_ratio > 0 ? 'text-green-400' : 'text-red-400'"
+                                           x-text="(signal.liquidity_info.imbalance_ratio * 100).toFixed(2) + '%'"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-400">深度比例</p>
+                                        <p x-text="(signal.liquidity_info.depth_ratio * 100).toFixed(1) + '%'"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 信号原因 -->
+                            <div>
+                                <h3 class="text-sm font-bold mb-2">💡 信号原因</h3>
+                                <p class="text-sm text-gray-300" x-text="signal.reason"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+<script>
+    function scannerApp() {
+        return {
+            showApiConfig: true,
+            showDetail: {},
+            scanning: false,
+            loading: false,
+            loadingMessage: '',
+            testingConnection: false,
+            scanLimit: 50,
+            signals: [],
+            scanStats: {
+                scanned: 0,
+                max_confidence: 0,
+                time: ''
+            },
+            connectionStatus: {
+                message: '',
+                connected: false
+            },
+            apiConfig: {
+                exchange: 'okx',
+                testnet: true,
+                api_key: '',
+                secret: '',
+                password: ''
+            },
+
+            init() {
+                this.loadApiConfig();
+            },
+
+            async loadApiConfig() {
+                try {
+                    const response = await fetch('/api/config');
+                    const data = await response.json();
+                    if (data.success && data.config) {
+                        this.apiConfig = data.config;
+                    }
+                } catch (error) {
+                    console.error('加载API配置失败:', error);
+                }
+            },
+
+            async saveApiConfig() {
+                try {
+                    const response = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.apiConfig)
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert('API配置保存成功');
+                    } else {
+                        alert('保存失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('保存失败: ' + error.message);
+                }
+            },
+
+            async testConnection() {
+                if (!this.apiConfig.api_key || !this.apiConfig.secret) {
+                    alert('请填写API Key和Secret');
+                    return;
+                }
+
+                if (this.apiConfig.exchange === 'okx' && !this.apiConfig.password) {
+                    alert('OKX需要填写Password');
+                    return;
+                }
+
+                this.testingConnection = true;
+
+                try {
+                    const response = await fetch('/api/test', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.apiConfig)
+                    });
+                    const data = await response.json();
+
+                    this.connectionStatus.connected = data.success;
+                    this.connectionStatus.message = data.success ? '连接成功！' : '连接失败：' + data.message;
+                } catch (error) {
+                    this.connectionStatus.connected = false;
+                    this.connectionStatus.message = '连接失败：' + error.message;
+                } finally {
+                    this.testingConnection = false;
+                }
+            },
+
+            async startScan() {
+                if (!this.apiConfig.api_key || !this.apiConfig.secret) {
+                    alert('请先配置API密钥');
+                    return;
+                }
+
+                this.scanning = true;
+                this.loading = true;
+                this.loadingMessage = '正在扫描合约...';
+                this.signals = [];
+
+                try {
+                    const response = await fetch('/api/scan?limit=' + this.scanLimit, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.apiConfig)
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.signals = data.signals;
+                        this.scanStats = data.stats;
+                    } else {
+                        alert('扫描失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('扫描失败: ' + error.message);
+                } finally {
+                    this.scanning = false;
+                    this.loading = false;
+                }
+            },
+
+            async refreshScan() {
+                await this.startScan();
+            },
+
+            toggleDetail(index) {
+                this.$set(this.showDetail, index, !this.showDetail[index]);
+            }
+        };
+    }
+</script>
+
+</body>
+</html>
