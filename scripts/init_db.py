@@ -4,6 +4,13 @@
 创建所有必要的表
 """
 
+import sys
+import os
+
+# 添加项目根目录到 Python 路径
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from storage.database.db import get_engine
 from storage.database.shared.model import Base, Position, TradeLog, StrategyConfig
 
