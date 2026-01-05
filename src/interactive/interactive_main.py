@@ -29,6 +29,14 @@ console = Console()
 async def interactive_wizard():
     """交互式向导"""
 
+    exchange = None
+    exchange_name = None
+    symbol = None
+    atr_result = None
+    current_price = None
+    params = None
+    cost = None
+
     try:
         console.print("""
 [bold cyan]
@@ -67,10 +75,9 @@ async def interactive_wizard():
             credentials.get('sandbox', False)
         )
         console.print(f"[green]✓ 交易所实例创建成功 ({exchange_name.upper()}, 沙盒={credentials.get('sandbox', False)})[/green]")
-    
-    # 步骤3: 选择交易对
-    console.print("\n[bold cyan]步骤 3/5: 选择交易对[/bold cyan]")
-    try:
+
+        # 步骤3: 选择交易对
+        console.print("\n[bold cyan]步骤 3/5: 选择交易对[/bold cyan]")
         popular_symbols = [
             'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT',
             'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'
@@ -86,30 +93,15 @@ async def interactive_wizard():
         ticker = exchange.get_ticker(symbol)
         current_price = ticker.price
         console.print(f"\n[green]✓ 当前价格: ${current_price:.2f}[/green]")
-    except Exception as e:
-        console.print(f"[red]获取行情失败: {e}[/red]")
-        import traceback
-        console.print(traceback.format_exc())
-        input("\n按回车键返回主菜单...")
-        return False
 
-    # 步骤4: 选择策略和配置参数
-    console.print("\n[bold cyan]步骤 4/5: 配置策略[/bold cyan]")
-
-    try:
+        # 步骤4: 选择策略和配置参数
+        console.print("\n[bold cyan]步骤 4/5: 配置策略[/bold cyan]")
         strategy_type = await InteractiveConfig.select_strategy()
         params = await InteractiveConfig.input_strategy_parameters(atr_result)
-    except Exception as e:
-        console.print(f"[red]策略配置失败: {e}[/red]")
-        import traceback
-        console.print(traceback.format_exc())
-        input("\n按回车键返回主菜单...")
-        return False
 
-    # 步骤5: 计算交易成本
-    console.print("\n[bold cyan]步骤 5/5: 交易成本计算[/bold cyan]")
+        # 步骤5: 计算交易成本
+        console.print("\n[bold cyan]步骤 5/5: 交易成本计算[/bold cyan]")
 
-    try:
         # 获取当前余额（用于比例模式）
         balance_info = exchange.get_balance()
         current_balance = balance_info.get('USDT', {}).get('free', 0)
@@ -137,11 +129,15 @@ async def interactive_wizard():
             'params': params,
             'cost': cost
         }
+
     except Exception as e:
-        console.print(f"[red]交易成本计算失败: {e}[/red]")
+        console.print(f"\n[red]发生错误: {e}[/red]")
         import traceback
         console.print(traceback.format_exc())
         input("\n按回车键返回主菜单...")
+        return False
+    except KeyboardInterrupt:
+        console.print("\n[yellow]用户取消操作[/yellow]")
         return False
 
 
