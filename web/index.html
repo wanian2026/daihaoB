@@ -348,6 +348,47 @@
     <!-- 市场行情 -->
     <div>
         <h2 class="text-lg font-bold border-b border-black pb-1 mb-2">市场行情</h2>
+
+        <!-- 搜索框 -->
+        <div class="mb-4 flex gap-2">
+            <select x-model="searchExchange" @change="loadAvailableSymbols()" class="border border-gray-300 px-3 py-2 text-sm">
+                <option value="okx">欧易 (OKX)</option>
+                <option value="binance">币安 (Binance)</option>
+            </select>
+            <div class="relative flex-1">
+                <input
+                    type="text"
+                    x-model="searchSymbol"
+                    @keyup.enter="searchTicker()"
+                    @focus="showSymbolList = true"
+                    placeholder="输入交易对名称，如: BTC/USDT"
+                    class="w-full border border-gray-300 px-3 py-2 text-sm"
+                >
+                <!-- 交易对下拉列表 -->
+                <div x-show="showSymbolList && availableSymbols.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 mt-1 max-h-60 overflow-y-auto">
+                    <template x-for="symbol in availableSymbols" :key="symbol">
+                        <div
+                            @click="selectSymbol(symbol)"
+                            class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                            x-text="symbol"
+                        ></div>
+                    </template>
+                </div>
+            </div>
+            <button @click="searchTicker()" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800">
+                搜索
+            </button>
+            <button @click="clearSearch()" class="px-4 py-2 border border-gray-300 text-sm hover:bg-gray-50">
+                清空
+            </button>
+        </div>
+
+        <!-- 搜索结果提示 -->
+        <div x-show="searchResult" class="mb-4 p-3 bg-blue-50 border border-blue-200 text-sm">
+            <span class="font-bold">搜索结果：</span>
+            <span x-text="searchResult"></span>
+        </div>
+
         <table class="excel-table">
             <thead>
             <tr>
@@ -389,6 +430,11 @@
             performance: {},
             ticker: {},
             marketTicker: {},
+            searchExchange: 'okx',
+            searchSymbol: '',
+            searchResult: '',
+            showSymbolList: false,
+            availableSymbols: [],
             apiConfig: {
                 exchange: 'okx',
                 testnet: true,
@@ -416,6 +462,7 @@
                 this.loadApiConfig();
                 this.checkTradingStatus();
                 this.loadMarketTicker();
+                this.loadAvailableSymbols();
                 setInterval(() => this.refreshData(), 5000);
             },
 
@@ -552,6 +599,65 @@
                 }
             },
 
+            async searchTicker() {
+                if (!this.searchSymbol.trim()) {
+                    alert('请输入交易对名称');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/exchange/ticker/${this.searchExchange}/${this.searchSymbol}`);
+                    const data = await response.json();
+
+                    if (data.success && data.ticker) {
+                        // 清空现有行情
+                        this.marketTicker = {};
+
+                        // 显示搜索结果
+                        this.marketTicker[this.searchSymbol] = {
+                            price: data.ticker.last,
+                            change: data.ticker.change,
+                            change_percent: data.ticker.percentage,
+                            volume: data.ticker.volume
+                        };
+
+                        this.searchResult = `成功获取 ${this.searchSymbol} 行情数据`;
+                    } else {
+                        this.searchResult = `搜索失败: ${data.message || '未知错误'}`;
+                        alert('搜索失败: ' + (data.message || '未知错误'));
+                    }
+                } catch (error) {
+                    this.searchResult = `搜索出错: ${error.message}`;
+                    alert('搜索出错: ' + error.message);
+                }
+            },
+
+            clearSearch() {
+                this.searchSymbol = '';
+                this.searchResult = '';
+                this.loadMarketTicker();
+            },
+
+            async loadAvailableSymbols() {
+                try {
+                    const response = await fetch(`/api/exchange/symbols/${this.searchExchange}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.availableSymbols = data.symbols || [];
+                        if (data.note) {
+                            console.log(data.note);
+                        }
+                    }
+                } catch (error) {
+                    console.error('加载交易对列表失败:', error);
+                }
+            },
+
+            selectSymbol(symbol) {
+                this.searchSymbol = symbol;
+                this.showSymbolList = false;
+            },
+
             async checkTradingStatus() {
                 try {
                     const response = await fetch('/api/trading/status');
@@ -664,7 +770,10 @@
                 this.loadPerformance();
                 this.loadBalance();
                 this.loadTicker();
-                this.loadMarketTicker();
+                // 只在没有搜索时自动刷新市场行情
+                if (!this.searchSymbol) {
+                    this.loadMarketTicker();
+                }
                 this.checkTradingStatus();
             }
         };

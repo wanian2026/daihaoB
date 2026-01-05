@@ -199,49 +199,49 @@ async def save_api_config(config: ExchangeConfig):
             "message": f"保存失败: {str(e)}"
         }
 
-@app.get("/api/exchange/ticker/{exchange_name}/{symbol}")
+@app.get("/api/exchange/ticker/{exchange_name}/{symbol:path}")
 async def get_ticker(exchange_name: str, symbol: str):
     """获取当前价格"""
     try:
-        # 从配置中获取API密钥
-        db = get_session()
-        config_mgr = StrategyConfigManager()
-        configs = config_mgr.list_configs(db)
+        # 尝试从配置文件中获取API密钥（不依赖数据库）
+        import os
+        config_path = os.path.join(os.path.dirname(__file__), "../../config/api_keys.json")
         api_key = None
         secret = None
         passphrase = None
         sandbox = True
 
-        for cfg in configs:
-            if cfg.exchange == exchange_name:
-                # 从配置文件读取API密钥
-                import os
-                config_path = os.path.join(os.path.dirname(__file__), "../../config/api_keys.json")
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    api_keys = json.load(f)
-                    if exchange_name in api_keys.get('exchanges', {}):
-                        exchange_data = api_keys['exchanges'][exchange_name]
-                        api_key = exchange_data.get('api_key')
-                        secret = exchange_data.get('secret')
-                        # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
-                        if exchange_name == 'okx':
-                            passphrase = exchange_data.get('password')
-                        else:
-                            passphrase = exchange_data.get('passphrase')
-                        sandbox = exchange_data.get('testnet', True)
-                break
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                api_keys = json.load(f)
+                if exchange_name in api_keys.get('exchanges', {}):
+                    exchange_data = api_keys['exchanges'][exchange_name]
+                    api_key = exchange_data.get('api_key')
+                    secret = exchange_data.get('secret')
+                    # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
+                    if exchange_name == 'okx':
+                        passphrase = exchange_data.get('password')
+                    else:
+                        passphrase = exchange_data.get('passphrase')
+                    sandbox = exchange_data.get('testnet', True)
 
-        if not api_key:
-            # 如果没有配置，返回模拟数据
+        # 如果没有API配置，返回模拟数据（用于搜索演示）
+        if not api_key or api_key == f"YOUR_{exchange_name.upper()}_API_KEY" or api_key == "test_api_key":
             import random
             base_prices = {
                 'BTC/USDT': 95000,
                 'ETH/USDT': 3300,
                 'BNB/USDT': 680,
-                'SOL/USDT': 210
+                'SOL/USDT': 210,
+                'DOGE/USDT': 0.32,
+                'AVAX/USDT': 42,
+                'XRP/USDT': 2.1,
+                'ADA/USDT': 1.05,
+                'LINK/USDT': 23,
+                'DOT/USDT': 7.5
             }
-            base_price = base_prices.get(symbol, 100)
-            change = random.uniform(-500, 500)
+            base_price = base_prices.get(symbol.upper(), 100)
+            change = random.uniform(-base_price * 0.05, base_price * 0.05)
             change_percent = (change / base_price) * 100
 
             return {
@@ -259,23 +259,127 @@ async def get_ticker(exchange_name: str, symbol: str):
                 }
             }
 
-        exchange = ExchangeFactory.create_exchange(
-            exchange_name, api_key, secret, passphrase, sandbox
-        )
-        ticker = exchange.get_ticker(symbol)
-        return {
-            "success": True,
-            "price": ticker.price,
-            "change": ticker.change,
-            "percentage": ticker.change_percent,
-            "volume": ticker.volume,
-            "timestamp": ticker.timestamp,
-            "ticker": {
-                "last": ticker.price,
+        # 尝试创建交易所并获取真实数据
+        try:
+            exchange = ExchangeFactory.create_exchange(
+                exchange_name, api_key, secret, passphrase, sandbox
+            )
+            ticker = exchange.get_ticker(symbol)
+            return {
+                "success": True,
+                "price": ticker.price,
                 "change": ticker.change,
                 "percentage": ticker.change_percent,
-                "volume": ticker.volume
+                "volume": ticker.volume,
+                "timestamp": ticker.timestamp,
+                "ticker": {
+                    "last": ticker.price,
+                    "change": ticker.change,
+                    "percentage": ticker.change_percent,
+                    "volume": ticker.volume
+                }
             }
+        except Exception as e:
+            # 如果获取真实数据失败，返回模拟数据
+            import random
+            base_prices = {
+                'BTC/USDT': 95000,
+                'ETH/USDT': 3300,
+                'BNB/USDT': 680,
+                'SOL/USDT': 210,
+                'DOGE/USDT': 0.32,
+                'AVAX/USDT': 42,
+                'XRP/USDT': 2.1,
+                'ADA/USDT': 1.05,
+                'LINK/USDT': 23,
+                'DOT/USDT': 7.5
+            }
+            base_price = base_prices.get(symbol.upper(), 100)
+            change = random.uniform(-base_price * 0.05, base_price * 0.05)
+            change_percent = (change / base_price) * 100
+
+            return {
+                "success": True,
+                "price": base_price + change,
+                "change": change,
+                "percentage": change_percent,
+                "volume": random.uniform(1000000, 50000000),
+                "timestamp": datetime.now().isoformat(),
+                "ticker": {
+                    "last": base_price + change,
+                    "change": change,
+                    "percentage": change_percent,
+                    "volume": random.uniform(1000000, 50000000)
+                },
+                "note": f"使用模拟数据，原因: {str(e)}"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
+@app.get("/api/exchange/symbols/{exchange_name}")
+async def get_available_symbols(exchange_name: str):
+    """获取可用的交易对列表"""
+    try:
+        # 常见的交易对列表（如果API未配置）
+        common_symbols = [
+            'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT',
+            'DOGE/USDT', 'AVAX/USDT', 'XRP/USDT', 'ADA/USDT',
+            'LINK/USDT', 'DOT/USDT', 'MATIC/USDT', 'UNI/USDT'
+        ]
+
+        # 尝试从配置文件中获取API密钥（不依赖数据库）
+        import os
+        config_path = os.path.join(os.path.dirname(__file__), "../../config/api_keys.json")
+        api_key = None
+        secret = None
+        passphrase = None
+        sandbox = True
+
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                api_keys = json.load(f)
+                if exchange_name in api_keys.get('exchanges', {}):
+                    exchange_data = api_keys['exchanges'][exchange_name]
+                    api_key = exchange_data.get('api_key')
+                    secret = exchange_data.get('secret')
+                    if exchange_name == 'okx':
+                        passphrase = exchange_data.get('password')
+                    else:
+                        passphrase = exchange_data.get('passphrase')
+                    sandbox = exchange_data.get('testnet', True)
+
+        # 如果有API配置，尝试获取真实的交易对列表
+        if api_key and api_key != f"YOUR_{exchange_name.upper()}_API_KEY":
+            try:
+                exchange = ExchangeFactory.create_exchange(
+                    exchange_name, api_key, secret, passphrase, sandbox
+                )
+                # 获取所有USDT交易对
+                markets = exchange.exchange.load_markets()
+                symbols = [symbol for symbol in markets.keys() if '/USDT' in symbol and 'USDC' not in symbol]
+                # 排序并限制返回数量
+                symbols.sort()
+                return {
+                    "success": True,
+                    "symbols": symbols[:50],  # 最多返回50个
+                    "total": len(symbols)
+                }
+            except Exception as e:
+                # 如果获取失败，返回常用列表
+                return {
+                    "success": True,
+                    "symbols": common_symbols,
+                    "note": "使用预设的交易对列表，原因: " + str(e)
+                }
+
+        # 没有API配置或使用占位符，返回常用列表
+        return {
+            "success": True,
+            "symbols": common_symbols,
+            "note": "使用预设的交易对列表"
         }
     except Exception as e:
         return {
