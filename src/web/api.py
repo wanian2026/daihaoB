@@ -155,7 +155,7 @@ async def get_api_config():
     except Exception as e:
         return {
             "success": False,
-            "message": str(e)
+            "message": f"加载配置失败: {str(e)}"
         }
 
 @app.post("/api/exchange/api-config")
@@ -196,7 +196,7 @@ async def save_api_config(config: ExchangeConfig):
     except Exception as e:
         return {
             "success": False,
-            "message": str(e)
+            "message": f"保存失败: {str(e)}"
         }
 
 @app.get("/api/exchange/ticker/{exchange_name}/{symbol}")
@@ -223,7 +223,11 @@ async def get_ticker(exchange_name: str, symbol: str):
                         exchange_data = api_keys['exchanges'][exchange_name]
                         api_key = exchange_data.get('api_key')
                         secret = exchange_data.get('secret')
-                        passphrase = exchange_data.get('password')
+                        # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
+                        if exchange_name == 'okx':
+                            passphrase = exchange_data.get('password')
+                        else:
+                            passphrase = exchange_data.get('passphrase')
                         sandbox = exchange_data.get('testnet', True)
                 break
 
@@ -300,8 +304,12 @@ async def get_balance(exchange_name: str):
                     if exchange_name in api_keys['exchanges']:
                         api_key = api_keys['exchanges'][exchange_name]['api_key']
                         secret = api_keys['exchanges'][exchange_name]['secret']
-                        passphrase = api_keys['exchanges'][exchange_name].get('passphrase')
-                        sandbox = api_keys['exchanges'][exchange_name].get('sandbox', True)
+                        # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
+                        if exchange_name == 'okx':
+                            passphrase = api_keys['exchanges'][exchange_name].get('password')
+                        else:
+                            passphrase = api_keys['exchanges'][exchange_name].get('passphrase')
+                        sandbox = api_keys['exchanges'][exchange_name].get('testnet', True)
                 break
 
         if not api_key:
@@ -428,12 +436,18 @@ async def trading_control(control: TradingControl):
             with open(config_path, 'r') as f:
                 api_keys = json.load(f)
                 exchange_config = api_keys['exchanges'][cfg.exchange]
+                # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
+                if cfg.exchange == 'okx':
+                    passphrase = exchange_config.get('password')
+                else:
+                    passphrase = exchange_config.get('passphrase')
+                sandbox = exchange_config.get('testnet', True)
                 exchange = ExchangeFactory.create_exchange(
                     cfg.exchange,
                     exchange_config['api_key'],
                     exchange_config['secret'],
-                    exchange_config.get('passphrase'),
-                    exchange_config.get('sandbox', True)
+                    passphrase,
+                    sandbox
                 )
 
             # 创建交易引擎
@@ -592,12 +606,18 @@ async def close_position(position_id: int):
                 raise HTTPException(status_code=404, detail="未找到交易所配置")
 
             exchange_config = api_keys['exchanges'][position.exchange]
+            # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
+            if position.exchange == 'okx':
+                passphrase = exchange_config.get('password')
+            else:
+                passphrase = exchange_config.get('passphrase')
+            sandbox = exchange_config.get('testnet', True)
             exchange = ExchangeFactory.create_exchange(
                 position.exchange,
                 exchange_config['api_key'],
                 exchange_config['secret'],
-                exchange_config.get('password'),
-                exchange_config.get('testnet', True)
+                passphrase,
+                sandbox
             )
 
         # 执行平仓
@@ -629,11 +649,12 @@ async def get_trades(limit: int = 100):
                     "id": trade.id,
                     "symbol": trade.symbol,
                     "side": trade.side,
-                    "order_type": trade.order_type,
+                    "order_type": trade.order_type if trade.order_type else 'market',
                     "price": trade.price,
                     "quantity": trade.quantity,
-                    "status": trade.status,
+                    "status": 'filled',  # 交易日志都是已成交的
                     "pnl": trade.pnl,
+                    "fee": trade.fee if trade.fee is not None else 0.0,
                     "created_at": trade.created_at.isoformat() if trade.created_at else None
                 }
                 for trade in trades
@@ -702,12 +723,18 @@ async def get_atr_analysis(exchange_name: str, symbol: str, period: int = 14):
                 raise HTTPException(status_code=404, detail="未找到交易所配置")
 
             exchange_config = api_keys['exchanges'][exchange_name]
+            # OKX使用password，币安使用passphrase（虽然币安通常不需要passphrase）
+            if exchange_name == 'okx':
+                passphrase = exchange_config.get('password')
+            else:
+                passphrase = exchange_config.get('passphrase')
+            sandbox = exchange_config.get('testnet', True)
             exchange = ExchangeFactory.create_exchange(
                 exchange_name,
                 exchange_config['api_key'],
                 exchange_config['secret'],
-                exchange_config.get('passphrase'),
-                exchange_config.get('sandbox', True)
+                passphrase,
+                sandbox
             )
 
         # 获取K线数据

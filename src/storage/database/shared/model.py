@@ -35,7 +35,7 @@ class Position(Base):
 class TradeLog(Base):
     """交易日志表：记录所有交易操作"""
     __tablename__ = "trade_logs"
-    
+
     id = Column(Integer, primary_key=True, comment="日志ID")
     exchange = Column(String(50), nullable=False, index=True, comment="交易所")
     symbol = Column(String(50), nullable=False, index=True, comment="交易对")
@@ -44,10 +44,12 @@ class TradeLog(Base):
     price = Column(Float, nullable=False, comment="成交价格")
     quantity = Column(Float, nullable=False, comment="成交数量")
     pnl = Column(Float, nullable=True, comment="盈亏")
+    fee = Column(Float, nullable=True, comment="手续费")
+    order_type = Column(String(20), nullable=True, comment="订单类型：market/limit")
     order_id = Column(String(100), nullable=True, comment="订单ID")
     meta = Column(JSON, nullable=True, comment="额外元数据")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, comment="交易时间")
-    
+
     __table_args__ = (
         {'comment': '交易日志表'},
     )

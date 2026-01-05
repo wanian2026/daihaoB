@@ -7,10 +7,10 @@
       "sandbox": false
     },
     "okx": {
-      "api_key": "YOUR_OKX_API_KEY",
-      "secret": "YOUR_OKX_SECRET",
-      "passphrase": "YOUR_OKX_PASSPHRASE",
-      "sandbox": false
+      "api_key": "test_api_key",
+      "secret": "test_secret",
+      "testnet": true,
+      "password": "test_password"
     }
   }
 }
