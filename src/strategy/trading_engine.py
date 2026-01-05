@@ -1,4 +1,5 @@
 import time
+import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -40,6 +41,7 @@ class TradingEngine:
         self.position_ratio = position_ratio
         self.leverage = leverage
         self.running = False
+        self.is_paused = False
 
         # 数据库管理器
         self.position_mgr = PositionManager()
@@ -176,6 +178,12 @@ class TradingEngine:
 
         try:
             while self.running:
+                # 检查是否暂停
+                if self.is_paused:
+                    logger.info("策略已暂停，等待恢复...")
+                    time.sleep(interval)
+                    continue
+
                 # 获取当前价格
                 ticker = self.exchange.get_ticker(self.symbol)
                 current_price = ticker.price
@@ -406,3 +414,55 @@ class TradingEngine:
         """停止策略"""
         logger.info("正在停止策略...")
         self.running = False
+
+    def pause(self):
+        """暂停策略"""
+        logger.info("策略已暂停")
+        self.is_paused = True
+
+    def resume(self):
+        """恢复策略"""
+        logger.info("策略已恢复")
+        self.is_paused = False
+
+    async def run_async(self, db: Session, interval: int = 1):
+        """
+        异步运行策略主循环
+        :param db: 数据库会话
+        :param interval: 监控间隔（秒）
+        """
+        self.running = True
+        logger.info(f"开始异步运行策略，监控间隔: {interval}秒")
+
+        try:
+            while self.running:
+                # 检查是否暂停
+                if self.is_paused:
+                    await asyncio.sleep(interval)
+                    continue
+
+                # 获取当前价格
+                ticker = self.exchange.get_ticker(self.symbol)
+                current_price = ticker.price
+                logger.info(f"当前价格: {current_price}")
+
+                # 获取所有未平仓的仓位
+                positions = self.position_mgr.get_open_positions(
+                    db, self.exchange.get_exchange_name(), self.symbol
+                )
+
+                # 处理每个仓位
+                for position in positions:
+                    self._check_position(db, position, current_price)
+
+                # 等待下一次检查
+                await asyncio.sleep(interval)
+
+        except KeyboardInterrupt:
+            logger.info("收到停止信号")
+        except Exception as e:
+            logger.error(f"策略运行异常: {e}")
+            raise
+        finally:
+            self.running = False
+            logger.info("策略已停止")
