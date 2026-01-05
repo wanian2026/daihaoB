@@ -3,607 +3,674 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交易系统管理</title>
+    <title>交易系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
         [x-cloak] { display: none !important; }
-    </style>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        black: '#000000',
-                        white: '#ffffff',
-                        gray: {
-                            50: '#f9fafb',
-                            100: '#f3f4f6',
-                            200: '#e5e7eb',
-                            300: '#d1d5db',
-                            400: '#9ca3af',
-                            500: '#6b7280',
-                            600: '#4b5563',
-                            700: '#374151',
-                            800: '#1f2937',
-                            900: '#111827',
-                        }
-                    }
-                }
-            }
+        .excel-table {
+            border-collapse: collapse;
+            width: 100%;
         }
-    </script>
+        .excel-table th,
+        .excel-table td {
+            border: 1px solid #d1d5db;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .excel-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .excel-table tr:hover td {
+            background-color: #f9fafb;
+        }
+        .excel-table td {
+            font-size: 13px;
+        }
+        .status-running {
+            background-color: #10b981;
+        }
+        .status-stopped {
+            background-color: #9ca3af;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans" x-data="app()" x-cloak>
+<body class="bg-white text-black font-mono" x-data="app()" x-cloak>
 
-    <div class="flex h-screen">
-        <!-- 侧边栏 -->
-        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
-            <div class="p-6 border-b border-gray-200">
-                <h1 class="text-xl font-bold text-black">交易系统</h1>
-                <p class="text-sm text-gray-500 mt-1">加密货币自动化交易</p>
+<div class="max-w-7xl mx-auto p-6">
+    <!-- 标题栏 -->
+    <div class="flex items-center justify-between mb-6 border-b-2 border-black pb-4">
+        <div>
+            <h1 class="text-2xl font-bold">交易系统</h1>
+            <p class="text-sm text-gray-500 mt-1">加密货币自动化交易</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full"
+                     :class="tradingStatus === 'running' ? 'bg-green-500' : 'bg-gray-400'"></div>
+                <span class="text-sm" x-text="tradingStatus === 'running' ? '运行中' : '已停止'"></span>
             </div>
-
-            <nav class="flex-1 p-4 space-y-2">
-                <button @click="currentTab = 'dashboard'"
-                    :class="currentTab === 'dashboard' ? 'bg-gray-100 text-black' : 'text-gray-600 hover:bg-gray-50'"
-                    class="w-full text-left px-4 py-3 rounded-lg transition-colors">
-                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
-                    </svg>
-                    仪表板
-                </button>
-
-                <button @click="currentTab = 'config'"
-                    :class="currentTab === 'config' ? 'bg-gray-100 text-black' : 'text-gray-600 hover:bg-gray-50'"
-                    class="w-full text-left px-4 py-3 rounded-lg transition-colors">
-                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                    策略配置
-                </button>
-
-                <button @click="currentTab = 'trading'"
-                    :class="currentTab === 'trading' ? 'bg-gray-100 text-black' : 'text-gray-600 hover:bg-gray-50'"
-                    class="w-full text-left px-4 py-3 rounded-lg transition-colors">
-                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                    交易控制
-                </button>
-
-                <button @click="currentTab = 'positions'"
-                    :class="currentTab === 'positions' ? 'bg-gray-100 text-black' : 'text-gray-600 hover:bg-gray-50'"
-                    class="w-full text-left px-4 py-3 rounded-lg transition-colors">
-                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                    持仓监控
-                </button>
-
-                <button @click="currentTab = 'history'"
-                    :class="currentTab === 'history' ? 'bg-gray-100 text-black' : 'text-gray-600 hover:bg-gray-50'"
-                    class="w-full text-left px-4 py-3 rounded-lg transition-colors">
-                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    交易历史
-                </button>
-            </nav>
-
-            <div class="p-4 border-t border-gray-200">
-                <div class="flex items-center">
-                    <div class="w-2 h-2 rounded-full"
-                        :class="tradingStatus === 'running' ? 'bg-green-500' : 'bg-gray-400'"></div>
-                    <span class="ml-2 text-sm text-gray-600" x-text="tradingStatus === 'running' ? '交易运行中' : '交易已停止'"></span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- 主内容区 -->
-        <main class="flex-1 overflow-auto">
-            <!-- 仪表板 -->
-            <div x-show="currentTab === 'dashboard'" class="p-8">
-                <h2 class="text-2xl font-bold text-black mb-6">仪表板</h2>
-
-                <!-- 统计卡片 -->
-                <div class="grid grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-lg border border-gray-200">
-                        <p class="text-sm text-gray-500 mb-2">总交易次数</p>
-                        <p class="text-3xl font-bold text-black" x-text="performance.total_trades || 0"></p>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg border border-gray-200">
-                        <p class="text-sm text-gray-500 mb-2">总盈亏</p>
-                        <p class="text-3xl font-bold"
-                            :class="performance.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'"
-                            x-text="(performance.total_pnl || 0).toFixed(2) + ' USDT'"></p>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg border border-gray-200">
-                        <p class="text-sm text-gray-500 mb-2">胜率</p>
-                        <p class="text-3xl font-bold text-black" x-text="(performance.win_rate * 100 || 0).toFixed(1) + '%'"></p>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg border border-gray-200">
-                        <p class="text-sm text-gray-500 mb-2">账户余额</p>
-                        <p class="text-3xl font-bold text-black" x-text="balance.toFixed(2) + ' USDT'"></p>
-                    </div>
-                </div>
-
-                <!-- 当前持仓 -->
-                <div class="bg-white p-6 rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-bold text-black mb-4">当前持仓</h3>
-                    <table class="w-full">
-                        <thead>
-                            <tr class="border-b border-gray-200">
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">交易对</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">方向</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">数量</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">入场价</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">盈亏</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="pos in positions" :key="pos.id">
-                                <tr class="border-b border-gray-100">
-                                    <td class="py-3 text-sm" x-text="pos.symbol"></td>
-                                    <td class="py-3 text-sm">
-                                        <span :class="pos.side === 'long' ? 'text-green-600' : 'text-red-600'" x-text="pos.side === 'long' ? '做多' : '做空'"></span>
-                                    </td>
-                                    <td class="py-3 text-sm" x-text="pos.size.toFixed(4)"></td>
-                                    <td class="py-3 text-sm" x-text="pos.entry_price.toFixed(2)"></td>
-                                    <td class="py-3 text-sm font-semibold"
-                                        :class="pos.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'"
-                                        x-text="pos.unrealized_pnl.toFixed(2) + ' USDT'"></td>
-                                </tr>
-                            </template>
-                            <tr x-show="positions.length === 0">
-                                <td colspan="5" class="py-8 text-center text-gray-400">暂无持仓</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 策略配置 -->
-            <div x-show="currentTab === 'config'" class="p-8">
-                <h2 class="text-2xl font-bold text-black mb-6">策略配置</h2>
-
-                <div class="bg-white p-6 rounded-lg border border-gray-200 mb-6">
-                    <h3 class="text-lg font-bold text-black mb-4">新建策略</h3>
-                    <form @submit.prevent="createConfig">
-                        <div class="grid grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">交易所</label>
-                                <select x-model="newConfig.exchange" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
-                                    <option value="okx">欧易 (OKX)</option>
-                                    <option value="binance">币安 (Binance)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">交易对</label>
-                                <select x-model="newConfig.symbol" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
-                                    <option value="BTC/USDT">BTC/USDT</option>
-                                    <option value="ETH/USDT">ETH/USDT</option>
-                                    <option value="BNB/USDT">BNB/USDT</option>
-                                    <option value="SOL/USDT">SOL/USDT</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">上涨阈值 (%)</label>
-                                <input type="number" x-model.number="newConfig.long_threshold" step="0.1"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                                    placeholder="例如：2">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">下跌阈值 (%)</label>
-                                <input type="number" x-model.number="newConfig.short_threshold" step="0.1"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                                    placeholder="例如：2">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">止损比例 (%)</label>
-                                <input type="number" x-model.number="newConfig.stop_loss_ratio" step="0.1"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                                    placeholder="例如：5">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">杠杆倍数</label>
-                                <input type="number" x-model.number="newConfig.leverage" min="1" max="125"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                                    placeholder="例如：1">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">固定仓位 (USDT)</label>
-                                <input type="number" x-model.number="newConfig.position_size" step="10"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                                    placeholder="留空使用比例模式">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-600 mb-2">仓位比例 (%)</label>
-                                <input type="number" x-model.number="newConfig.position_ratio" step="1" min="1" max="100"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                                    placeholder="例如：20">
-                            </div>
-                        </div>
-                        <div class="mt-6">
-                            <button type="submit"
-                                class="px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors">
-                                保存配置
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="bg-white p-6 rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-bold text-black mb-4">已保存的配置</h3>
-                    <table class="w-full">
-                        <thead>
-                            <tr class="border-b border-gray-200">
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">交易所</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">交易对</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">杠杆</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="config in configs" :key="config.id">
-                                <tr class="border-b border-gray-100">
-                                    <td class="py-3 text-sm" x-text="config.exchange.toUpperCase()"></td>
-                                    <td class="py-3 text-sm" x-text="config.symbol"></td>
-                                    <td class="py-3 text-sm" x-text="config.leverage + 'x'"></td>
-                                    <td class="py-3 text-sm">
-                                        <button @click="deleteConfig(config.id)"
-                                            class="text-red-600 hover:text-red-800">删除</button>
-                                    </td>
-                                </tr>
-                            </template>
-                            <tr x-show="configs.length === 0">
-                                <td colspan="4" class="py-8 text-center text-gray-400">暂无配置</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 交易控制 -->
-            <div x-show="currentTab === 'trading'" class="p-8">
-                <h2 class="text-2xl font-bold text-black mb-6">交易控制</h2>
-
-                <div class="bg-white p-6 rounded-lg border border-gray-200 mb-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-lg font-bold text-black">交易状态</h3>
-                            <p class="text-sm text-gray-500 mt-1"
-                                x-text="tradingStatus === 'running' ? '交易正在运行' : '交易已停止'"></p>
-                        </div>
-                        <div class="flex gap-3">
-                            <button @click="controlTrading('start')"
-                                :disabled="tradingStatus === 'running'"
-                                class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                                启动
-                            </button>
-                            <button @click="controlTrading('stop')"
-                                :disabled="tradingStatus !== 'running'"
-                                class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                                停止
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-bold text-black mb-4">市场行情</h3>
-                    <div class="grid grid-cols-2 gap-6">
-                        <template x-for="config in configs" :key="config.id">
-                            <div class="border border-gray-200 rounded-lg p-4">
-                                <p class="text-sm text-gray-600" x-text="config.symbol"></p>
-                                <p class="text-2xl font-bold text-black mt-2" x-text="'$' + (ticker[config.symbol] || '加载中...')"></p>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 持仓监控 -->
-            <div x-show="currentTab === 'positions'" class="p-8">
-                <h2 class="text-2xl font-bold text-black mb-6">持仓监控</h2>
-
-                <div class="bg-white p-6 rounded-lg border border-gray-200">
-                    <table class="w-full">
-                        <thead>
-                            <tr class="border-b border-gray-200">
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">ID</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">交易对</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">方向</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">数量</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">入场价</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">现价</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">未实现盈亏</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">止损价</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">开仓时间</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="pos in positions" :key="pos.id">
-                                <tr class="border-b border-gray-100">
-                                    <td class="py-3 text-sm" x-text="pos.id"></td>
-                                    <td class="py-3 text-sm" x-text="pos.symbol"></td>
-                                    <td class="py-3 text-sm">
-                                        <span :class="pos.side === 'long' ? 'text-green-600' : 'text-red-600'" x-text="pos.side === 'long' ? '做多' : '做空'"></span>
-                                    </td>
-                                    <td class="py-3 text-sm" x-text="pos.size.toFixed(4)"></td>
-                                    <td class="py-3 text-sm" x-text="pos.entry_price.toFixed(2)"></td>
-                                    <td class="py-3 text-sm" x-text="pos.current_price.toFixed(2)"></td>
-                                    <td class="py-3 text-sm font-semibold"
-                                        :class="pos.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'"
-                                        x-text="pos.unrealized_pnl.toFixed(2) + ' USDT'"></td>
-                                    <td class="py-3 text-sm" x-text="pos.stop_loss ? pos.stop_loss.toFixed(2) : '-'"></td>
-                                    <td class="py-3 text-sm text-gray-500" x-text="new Date(pos.created_at).toLocaleString()"></td>
-                                </tr>
-                            </template>
-                            <tr x-show="positions.length === 0">
-                                <td colspan="9" class="py-8 text-center text-gray-400">暂无持仓</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 交易历史 -->
-            <div x-show="currentTab === 'history'" class="p-8">
-                <h2 class="text-2xl font-bold text-black mb-6">交易历史</h2>
-
-                <div class="bg-white p-6 rounded-lg border border-gray-200">
-                    <table class="w-full">
-                        <thead>
-                            <tr class="border-b border-gray-200">
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">ID</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">交易对</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">方向</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">订单类型</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">价格</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">数量</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">盈亏</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">状态</th>
-                                <th class="text-left py-3 text-sm font-semibold text-gray-600">时间</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="trade in trades" :key="trade.id">
-                                <tr class="border-b border-gray-100">
-                                    <td class="py-3 text-sm" x-text="trade.id"></td>
-                                    <td class="py-3 text-sm" x-text="trade.symbol"></td>
-                                    <td class="py-3 text-sm">
-                                        <span :class="trade.side === 'buy' ? 'text-green-600' : 'text-red-600'" x-text="trade.side === 'buy' ? '买入' : '卖出'"></span>
-                                    </td>
-                                    <td class="py-3 text-sm" x-text="trade.order_type"></td>
-                                    <td class="py-3 text-sm" x-text="trade.price.toFixed(2)"></td>
-                                    <td class="py-3 text-sm" x-text="trade.quantity.toFixed(4)"></td>
-                                    <td class="py-3 text-sm font-semibold"
-                                        :class="trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'"
-                                        x-text="trade.pnl ? trade.pnl.toFixed(2) + ' USDT' : '-'"></td>
-                                    <td class="py-3 text-sm">
-                                        <span x-show="trade.status === 'filled'" class="text-green-600">成交</span>
-                                        <span x-show="trade.status === 'pending'" class="text-yellow-600">待成交</span>
-                                        <span x-show="trade.status === 'cancelled'" class="text-red-600">已取消</span>
-                                    </td>
-                                    <td class="py-3 text-sm text-gray-500" x-text="new Date(trade.created_at).toLocaleString()"></td>
-                                </tr>
-                            </template>
-                            <tr x-show="trades.length === 0">
-                                <td colspan="9" class="py-8 text-center text-gray-400">暂无交易记录</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </main>
+            <button @click="refreshData()" class="px-4 py-2 border border-gray-300 text-sm hover:bg-gray-50">
+                刷新
+            </button>
+        </div>
     </div>
 
-    <script>
-        function app() {
-            return {
-                currentTab: 'dashboard',
-                tradingStatus: 'stopped',
-                balance: 0,
-                positions: [],
-                trades: [],
-                configs: [],
-                performance: {},
-                ticker: {},
-                newConfig: {
-                    exchange: 'okx',
-                    symbol: 'BTC/USDT',
-                    long_threshold: 2,
-                    short_threshold: 2,
-                    stop_loss_ratio: 5,
-                    leverage: 1,
-                    position_size: null,
-                    position_ratio: 20
-                },
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="border border-gray-300 p-4">
+            <p class="text-xs text-gray-500 uppercase">总交易</p>
+            <p class="text-2xl font-bold mt-1" x-text="performance.total_trades || 0"></p>
+        </div>
+        <div class="border border-gray-300 p-4">
+            <p class="text-xs text-gray-500 uppercase">总盈亏</p>
+            <p class="text-2xl font-bold mt-1"
+               :class="performance.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'"
+               x-text="(performance.total_pnl || 0).toFixed(2) + ' USDT'"></p>
+        </div>
+        <div class="border border-gray-300 p-4">
+            <p class="text-xs text-gray-500 uppercase">胜率</p>
+            <p class="text-2xl font-bold mt-1" x-text="(performance.win_rate * 100 || 0).toFixed(1) + '%'"></p>
+        </div>
+        <div class="border border-gray-300 p-4">
+            <p class="text-xs text-gray-500 uppercase">余额</p>
+            <p class="text-2xl font-bold mt-1" x-text="balance.toFixed(2) + ' USDT'"></p>
+        </div>
+    </div>
 
-                init() {
-                    this.loadConfigs();
-                    this.loadPerformance();
-                    this.loadPositions();
-                    this.loadTrades();
-                    this.loadBalance();
-                    this.checkTradingStatus();
-                    setInterval(() => this.refreshData(), 5000);
-                },
+    <!-- API配置 -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-lg font-bold border-b border-black pb-1">API配置</h2>
+            <button @click="showApiConfig = !showApiConfig" class="text-sm text-gray-500">
+                x-text="showApiConfig ? '收起' : '展开'"
+            </button>
+        </div>
+        <div x-show="showApiConfig" class="border border-gray-300 p-4">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">交易所</label>
+                    <select x-model="apiConfig.exchange" class="w-full border border-gray-300 px-3 py-2 text-sm">
+                        <option value="okx">欧易 (OKX)</option>
+                        <option value="binance">币安 (Binance)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">测试网</label>
+                    <select x-model="apiConfig.testnet" class="w-full border border-gray-300 px-3 py-2 text-sm">
+                        <option :value="true">是</option>
+                        <option :value="false">否</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">API Key</label>
+                    <input type="text" x-model="apiConfig.api_key" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="输入API Key">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">Secret</label>
+                    <input type="password" x-model="apiConfig.secret" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="输入Secret">
+                </div>
+                <div x-show="apiConfig.exchange === 'okx'">
+                    <label class="text-xs text-gray-600 uppercase block mb-1">Password</label>
+                    <input type="password" x-model="apiConfig.password" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="输入Password">
+                </div>
+            </div>
+            <button @click="saveApiConfig()" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800">
+                保存API配置
+            </button>
+        </div>
+    </div>
 
-                async loadConfigs() {
-                    try {
-                        const response = await fetch('/api/strategy/configs');
-                        const data = await response.json();
-                        if (data.success) {
-                            this.configs = data.configs;
-                            if (this.configs.length > 0) {
-                                this.loadTicker();
-                            }
-                        }
-                    } catch (error) {
-                        console.error('加载配置失败:', error);
+    <!-- 策略配置表格 -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-lg font-bold border-b border-black pb-1">策略配置</h2>
+            <button @click="showAddConfig = true" class="text-sm text-blue-600">+ 新增策略</button>
+        </div>
+
+        <div x-show="showAddConfig" class="border border-gray-300 p-4 mb-4">
+            <div class="grid grid-cols-4 gap-4 mb-4">
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">交易所</label>
+                    <select x-model="newConfig.exchange" class="w-full border border-gray-300 px-3 py-2 text-sm">
+                        <option value="okx">欧易 (OKX)</option>
+                        <option value="binance">币安 (Binance)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">交易对</label>
+                    <select x-model="newConfig.symbol" class="w-full border border-gray-300 px-3 py-2 text-sm">
+                        <option value="BTC/USDT">BTC/USDT</option>
+                        <option value="ETH/USDT">ETH/USDT</option>
+                        <option value="BNB/USDT">BNB/USDT</option>
+                        <option value="SOL/USDT">SOL/USDT</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">上涨阈值(%)</label>
+                    <input type="number" x-model.number="newConfig.long_threshold" step="0.1" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="2">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">下跌阈值(%)</label>
+                    <input type="number" x-model.number="newConfig.short_threshold" step="0.1" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="2">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">止损比例(%)</label>
+                    <input type="number" x-model.number="newConfig.stop_loss_ratio" step="0.1" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="5">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">杠杆</label>
+                    <input type="number" x-model.number="newConfig.leverage" min="1" max="125" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="1">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">固定仓位(USDT)</label>
+                    <input type="number" x-model.number="newConfig.position_size" step="10" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="留空使用比例">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">仓位比例(%)</label>
+                    <input type="number" x-model.number="newConfig.position_ratio" step="1" min="1" max="100" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="20">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button @click="createConfig()" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800">
+                    保存策略
+                </button>
+                <button @click="showAddConfig = false" class="px-4 py-2 border border-gray-300 text-sm hover:bg-gray-50">
+                    取消
+                </button>
+            </div>
+        </div>
+
+        <table class="excel-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>交易所</th>
+                <th>交易对</th>
+                <th>上涨阈值</th>
+                <th>下跌阈值</th>
+                <th>止损</th>
+                <th>杠杆</th>
+                <th>仓位</th>
+                <th>现价</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            <template x-for="config in configs" :key="config.id">
+                <tr>
+                    <td x-text="config.id"></td>
+                    <td x-text="config.exchange.toUpperCase()"></td>
+                    <td x-text="config.symbol"></td>
+                    <td x-text="(config.long_threshold * 100).toFixed(1) + '%'"></td>
+                    <td x-text="(config.short_threshold * 100).toFixed(1) + '%'"></td>
+                    <td x-text="(config.stop_loss_ratio * 100).toFixed(1) + '%'"></td>
+                    <td x-text="config.leverage + 'x'"></td>
+                    <td>
+                        <span x-show="config.position_size" x-text="config.position_size + ' USDT'"></span>
+                        <span x-show="!config.position_size" x-text="config.position_ratio + '%'"></span>
+                    </td>
+                    <td x-text="ticker[config.symbol] || '-'"></td>
+                    <td>
+                        <button @click="deleteConfig(config.id)" class="text-red-600 hover:underline text-xs">删除</button>
+                    </td>
+                </tr>
+            </template>
+            <tr x-show="configs.length === 0">
+                <td colspan="11" class="text-center text-gray-400 py-4">暂无策略配置</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 交易控制 -->
+    <div class="mb-6">
+        <h2 class="text-lg font-bold border-b border-black pb-1 mb-2">交易控制</h2>
+        <div class="flex gap-4">
+            <button @click="controlTrading('start')"
+                    :disabled="tradingStatus === 'running'"
+                    class="px-6 py-2 bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50">
+                启动交易
+            </button>
+            <button @click="controlTrading('pause')"
+                    :disabled="tradingStatus !== 'running'"
+                    class="px-6 py-2 bg-yellow-600 text-white text-sm hover:bg-yellow-700 disabled:opacity-50">
+                暂停交易
+            </button>
+            <button @click="controlTrading('resume')"
+                    :disabled="tradingStatus !== 'paused'"
+                    class="px-6 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50">
+                恢复交易
+            </button>
+            <button @click="controlTrading('stop')"
+                    :disabled="tradingStatus === 'stopped'"
+                    class="px-6 py-2 bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50">
+                停止交易
+            </button>
+        </div>
+    </div>
+
+    <!-- 持仓监控表格 -->
+    <div class="mb-6">
+        <h2 class="text-lg font-bold border-b border-black pb-1 mb-2">持仓监控</h2>
+        <table class="excel-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>交易对</th>
+                <th>方向</th>
+                <th>数量</th>
+                <th>入场价</th>
+                <th>现价</th>
+                <th>盈亏</th>
+                <th>盈亏%</th>
+                <th>止损价</th>
+                <th>开仓时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            <template x-for="pos in positions" :key="pos.id">
+                <tr>
+                    <td x-text="pos.id"></td>
+                    <td x-text="pos.symbol"></td>
+                    <td>
+                        <span :class="pos.side === 'long' ? 'text-green-600' : 'text-red-600'" x-text="pos.side === 'long' ? '做多' : '做空'"></span>
+                    </td>
+                    <td x-text="pos.size.toFixed(4)"></td>
+                    <td x-text="pos.entry_price.toFixed(2)"></td>
+                    <td x-text="pos.current_price.toFixed(2)"></td>
+                    <td :class="pos.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'" x-text="pos.unrealized_pnl.toFixed(2) + ' USDT'"></td>
+                    <td :class="pos.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'" x-text="(pos.unrealized_pnl_pct * 100).toFixed(2) + '%'"></td>
+                    <td x-text="pos.stop_loss ? pos.stop_loss.toFixed(2) : '-'"></td>
+                    <td x-text="new Date(pos.created_at).toLocaleString()"></td>
+                    <td>
+                        <button @click="closePosition(pos.id)" class="text-red-600 hover:underline text-xs">平仓</button>
+                    </td>
+                </tr>
+            </template>
+            <tr x-show="positions.length === 0">
+                <td colspan="12" class="text-center text-gray-400 py-4">暂无持仓</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 交易历史表格 -->
+    <div class="mb-6">
+        <h2 class="text-lg font-bold border-b border-black pb-1 mb-2">交易历史</h2>
+        <table class="excel-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>交易对</th>
+                <th>方向</th>
+                <th>类型</th>
+                <th>价格</th>
+                <th>数量</th>
+                <th>盈亏</th>
+                <th>手续费</th>
+                <th>状态</th>
+                <th>时间</th>
+            </tr>
+            </thead>
+            <tbody>
+            <template x-for="trade in trades" :key="trade.id">
+                <tr>
+                    <td x-text="trade.id"></td>
+                    <td x-text="trade.symbol"></td>
+                    <td>
+                        <span :class="trade.side === 'buy' ? 'text-green-600' : 'text-red-600'" x-text="trade.side === 'buy' ? '买入' : '卖出'"></span>
+                    </td>
+                    <td x-text="trade.order_type"></td>
+                    <td x-text="trade.price.toFixed(2)"></td>
+                    <td x-text="trade.quantity.toFixed(4)"></td>
+                    <td :class="trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'" x-text="trade.pnl ? trade.pnl.toFixed(2) + ' USDT' : '-'"></td>
+                    <td x-text="trade.fee ? trade.fee.toFixed(4) + ' USDT' : '-'"></td>
+                    <td>
+                        <span x-show="trade.status === 'filled'" class="text-green-600">成交</span>
+                        <span x-show="trade.status === 'pending'" class="text-yellow-600">待成交</span>
+                        <span x-show="trade.status === 'cancelled'" class="text-red-600">已取消</span>
+                        <span x-show="trade.status === 'failed'" class="text-red-600">失败</span>
+                    </td>
+                    <td x-text="new Date(trade.created_at).toLocaleString()"></td>
+                </tr>
+            </template>
+            <tr x-show="trades.length === 0">
+                <td colspan="11" class="text-center text-gray-400 py-4">暂无交易记录</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 市场行情 -->
+    <div>
+        <h2 class="text-lg font-bold border-b border-black pb-1 mb-2">市场行情</h2>
+        <table class="excel-table">
+            <thead>
+            <tr>
+                <th>交易对</th>
+                <th>最新价</th>
+                <th>24h涨跌</th>
+                <th>24h涨跌幅</th>
+                <th>24h成交量</th>
+            </tr>
+            </thead>
+            <tbody>
+            <template x-for="(ticker, symbol) in marketTicker" :key="symbol">
+                <tr>
+                    <td x-text="symbol"></td>
+                    <td x-text="ticker.price ? ticker.price.toFixed(2) : '-'"></td>
+                    <td :class="ticker.change >= 0 ? 'text-green-600' : 'text-red-600'" x-text="ticker.change ? ticker.change.toFixed(2) : '-'"></td>
+                    <td :class="ticker.change_percent >= 0 ? 'text-green-600' : 'text-red-600'" x-text="ticker.change_percent ? ticker.change_percent.toFixed(2) + '%' : '-'"></td>
+                    <td x-text="ticker.volume ? ticker.volume.toFixed(2) : '-'"></td>
+                </tr>
+            </template>
+            <tr x-show="Object.keys(marketTicker).length === 0">
+                <td colspan="5" class="text-center text-gray-400 py-4">暂无行情数据</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function app() {
+        return {
+            showApiConfig: false,
+            showAddConfig: false,
+            tradingStatus: 'stopped',
+            balance: 0,
+            positions: [],
+            trades: [],
+            configs: [],
+            performance: {},
+            ticker: {},
+            marketTicker: {},
+            apiConfig: {
+                exchange: 'okx',
+                testnet: true,
+                api_key: '',
+                secret: '',
+                password: ''
+            },
+            newConfig: {
+                exchange: 'okx',
+                symbol: 'BTC/USDT',
+                long_threshold: 2,
+                short_threshold: 2,
+                stop_loss_ratio: 5,
+                leverage: 1,
+                position_size: null,
+                position_ratio: 20
+            },
+
+            init() {
+                this.loadConfigs();
+                this.loadPerformance();
+                this.loadPositions();
+                this.loadTrades();
+                this.loadBalance();
+                this.loadApiConfig();
+                this.checkTradingStatus();
+                this.loadMarketTicker();
+                setInterval(() => this.refreshData(), 5000);
+            },
+
+            async loadApiConfig() {
+                try {
+                    const response = await fetch('/api/exchange/api-config');
+                    const data = await response.json();
+                    if (data.success && data.config) {
+                        this.apiConfig = data.config;
                     }
-                },
-
-                async loadPerformance() {
-                    try {
-                        const response = await fetch('/api/performance');
-                        const data = await response.json();
-                        if (data.success) {
-                            this.performance = data.performance;
-                        }
-                    } catch (error) {
-                        console.error('加载性能数据失败:', error);
-                    }
-                },
-
-                async loadPositions() {
-                    try {
-                        const response = await fetch('/api/positions');
-                        const data = await response.json();
-                        if (data.success) {
-                            this.positions = data.positions;
-                        }
-                    } catch (error) {
-                        console.error('加载持仓失败:', error);
-                    }
-                },
-
-                async loadTrades() {
-                    try {
-                        const response = await fetch('/api/trades');
-                        const data = await response.json();
-                        if (data.success) {
-                            this.trades = data.trades;
-                        }
-                    } catch (error) {
-                        console.error('加载交易历史失败:', error);
-                    }
-                },
-
-                async loadBalance() {
-                    try {
-                        if (this.configs.length > 0) {
-                            const response = await fetch(`/api/exchange/balance/${this.configs[0].exchange}`);
-                            const data = await response.json();
-                            if (data.success && data.balance.USDT) {
-                                this.balance = data.balance.USDT.free;
-                            }
-                        }
-                    } catch (error) {
-                        console.error('加载余额失败:', error);
-                    }
-                },
-
-                async loadTicker() {
-                    for (const config of this.configs) {
-                        try {
-                            const response = await fetch(`/api/exchange/ticker/${config.exchange}/${config.symbol}`);
-                            const data = await response.json();
-                            if (data.success) {
-                                this.ticker[config.symbol] = data.price.toFixed(2);
-                            }
-                        } catch (error) {
-                            console.error('加载行情失败:', error);
-                        }
-                    }
-                },
-
-                async checkTradingStatus() {
-                    try {
-                        const response = await fetch('/api/trading/status');
-                        const data = await response.json();
-                        if (data.success) {
-                            this.tradingStatus = data.status;
-                        }
-                    } catch (error) {
-                        console.error('检查交易状态失败:', error);
-                    }
-                },
-
-                async createConfig() {
-                    try {
-                        const config = {
-                            ...this.newConfig,
-                            long_threshold: this.newConfig.long_threshold / 100,
-                            short_threshold: this.newConfig.short_threshold / 100,
-                            stop_loss_ratio: this.newConfig.stop_loss_ratio / 100
-                        };
-
-                        const response = await fetch('/api/strategy/config', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(config)
-                        });
-                        const data = await response.json();
-
-                        if (data.success) {
-                            alert('配置保存成功');
-                            this.loadConfigs();
-                        } else {
-                            alert('保存失败: ' + data.message);
-                        }
-                    } catch (error) {
-                        alert('保存失败: ' + error.message);
-                    }
-                },
-
-                async deleteConfig(id) {
-                    if (!confirm('确定删除此配置吗？')) return;
-
-                    try {
-                        const response = await fetch(`/api/strategy/config/${id}`, {
-                            method: 'DELETE'
-                        });
-                        const data = await response.json();
-
-                        if (data.success) {
-                            alert('删除成功');
-                            this.loadConfigs();
-                        } else {
-                            alert('删除失败: ' + data.message);
-                        }
-                    } catch (error) {
-                        alert('删除失败: ' + error.message);
-                    }
-                },
-
-                async controlTrading(action) {
-                    try {
-                        const response = await fetch('/api/trading/control', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ action })
-                        });
-                        const data = await response.json();
-
-                        if (data.success) {
-                            alert(data.message);
-                            this.checkTradingStatus();
-                        } else {
-                            alert('操作失败: ' + data.message);
-                        }
-                    } catch (error) {
-                        alert('操作失败: ' + error.message);
-                    }
-                },
-
-                refreshData() {
-                    this.loadPositions();
-                    this.loadTrades();
-                    this.loadPerformance();
-                    this.loadBalance();
-                    this.loadTicker();
-                    this.checkTradingStatus();
+                } catch (error) {
+                    console.error('加载API配置失败:', error);
                 }
-            };
-        }
-    </script>
+            },
+
+            async saveApiConfig() {
+                try {
+                    const response = await fetch('/api/exchange/api-config', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.apiConfig)
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert('API配置保存成功');
+                        this.showApiConfig = false;
+                    } else {
+                        alert('保存失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('保存失败: ' + error.message);
+                }
+            },
+
+            async loadConfigs() {
+                try {
+                    const response = await fetch('/api/strategy/configs');
+                    const data = await response.json();
+                    if (data.success) {
+                        this.configs = data.configs;
+                        if (this.configs.length > 0) {
+                            this.loadTicker();
+                        }
+                    }
+                } catch (error) {
+                    console.error('加载配置失败:', error);
+                }
+            },
+
+            async loadPerformance() {
+                try {
+                    const response = await fetch('/api/performance');
+                    const data = await response.json();
+                    if (data.success) {
+                        this.performance = data.performance;
+                    }
+                } catch (error) {
+                    console.error('加载性能数据失败:', error);
+                }
+            },
+
+            async loadPositions() {
+                try {
+                    const response = await fetch('/api/positions');
+                    const data = await response.json();
+                    if (data.success) {
+                        this.positions = data.positions;
+                    }
+                } catch (error) {
+                    console.error('加载持仓失败:', error);
+                }
+            },
+
+            async loadTrades() {
+                try {
+                    const response = await fetch('/api/trades?limit=50');
+                    const data = await response.json();
+                    if (data.success) {
+                        this.trades = data.trades;
+                    }
+                } catch (error) {
+                    console.error('加载交易历史失败:', error);
+                }
+            },
+
+            async loadBalance() {
+                try {
+                    if (this.configs.length > 0) {
+                        const response = await fetch(`/api/exchange/balance/${this.configs[0].exchange}`);
+                        const data = await response.json();
+                        if (data.success && data.balance.USDT) {
+                            this.balance = data.balance.USDT.free;
+                        }
+                    }
+                } catch (error) {
+                    console.error('加载余额失败:', error);
+                }
+            },
+
+            async loadTicker() {
+                for (const config of this.configs) {
+                    try {
+                        const response = await fetch(`/api/exchange/ticker/${config.exchange}/${config.symbol}`);
+                        const data = await response.json();
+                        if (data.success) {
+                            this.ticker[config.symbol] = data.price;
+                        }
+                    } catch (error) {
+                        console.error('加载行情失败:', error);
+                    }
+                }
+            },
+
+            async loadMarketTicker() {
+                const symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT'];
+                for (const symbol of symbols) {
+                    try {
+                        const response = await fetch(`/api/exchange/ticker/okx/${symbol}`);
+                        const data = await response.json();
+                        if (data.success && data.ticker) {
+                            this.marketTicker[symbol] = {
+                                price: data.ticker.last,
+                                change: data.ticker.change,
+                                change_percent: data.ticker.percentage,
+                                volume: data.ticker.volume
+                            };
+                        }
+                    } catch (error) {
+                        console.error('加载市场行情失败:', error);
+                    }
+                }
+            },
+
+            async checkTradingStatus() {
+                try {
+                    const response = await fetch('/api/trading/status');
+                    const data = await response.json();
+                    if (data.success) {
+                        this.tradingStatus = data.status;
+                    }
+                } catch (error) {
+                    console.error('检查交易状态失败:', error);
+                }
+            },
+
+            async createConfig() {
+                try {
+                    const config = {
+                        ...this.newConfig,
+                        long_threshold: this.newConfig.long_threshold / 100,
+                        short_threshold: this.newConfig.short_threshold / 100,
+                        stop_loss_ratio: this.newConfig.stop_loss_ratio / 100
+                    };
+
+                    const response = await fetch('/api/strategy/config', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(config)
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert('策略保存成功');
+                        this.showAddConfig = false;
+                        this.loadConfigs();
+                    } else {
+                        alert('保存失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('保存失败: ' + error.message);
+                }
+            },
+
+            async deleteConfig(id) {
+                if (!confirm('确定删除此策略吗？')) return;
+
+                try {
+                    const response = await fetch(`/api/strategy/config/${id}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert('删除成功');
+                        this.loadConfigs();
+                    } else {
+                        alert('删除失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('删除失败: ' + error.message);
+                }
+            },
+
+            async closePosition(id) {
+                if (!confirm('确定平仓吗？')) return;
+
+                try {
+                    const response = await fetch(`/api/positions/${id}/close`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert('平仓成功');
+                        this.loadPositions();
+                        this.loadTrades();
+                        this.loadPerformance();
+                    } else {
+                        alert('平仓失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('平仓失败: ' + error.message);
+                }
+            },
+
+            async controlTrading(action) {
+                try {
+                    const response = await fetch('/api/trading/control', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ action })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert(data.message);
+                        this.checkTradingStatus();
+                    } else {
+                        alert('操作失败: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('操作失败: ' + error.message);
+                }
+            },
+
+            refreshData() {
+                this.loadPositions();
+                this.loadTrades();
+                this.loadPerformance();
+                this.loadBalance();
+                this.loadTicker();
+                this.loadMarketTicker();
+                this.checkTradingStatus();
+            }
+        };
+    }
+</script>
+
 </body>
 </html>
