@@ -22,13 +22,21 @@ class BinanceExchange(BaseExchange):
         if sandbox:
             print("使用币安期货测试网 (testnet.binancefuture.com)")
             print("提示: 币安期货测试网需要单独的API密钥")
+            # 设置币安期货测试网
             exchange_config['urls'] = {
                 'api': {
                     'public': 'https://testnet.binancefuture.com/fapi',
                     'private': 'https://testnet.binancefuture.com/fapi',
                 }
             }
+            # CCXT币安期货测试网配置
+            exchange_config['testnet'] = True
             exchange_config['sandboxMode'] = True
+            # 额外的期货测试网选项
+            exchange_config['options']['adjustForTimeDifference'] = True
+        else:
+            # 正式网配置
+            exchange_config['options']['adjustForTimeDifference'] = True
 
         self.exchange = ccxt.binance(exchange_config)
 
