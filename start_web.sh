@@ -114,6 +114,9 @@ echo -e "${GREEN}✓ Web界面地址: ${CYAN}http://localhost:${PORT}${NC}"
 echo -e "${YELLOW}提示: 按 Ctrl+C 停止服务器${NC}"
 echo ""
 
+# 设置 PYTHONPATH，将 src 目录加入
+export PYTHONPATH="${PROJECT_ROOT}/src:${PYTHONPATH}"
+
 # 启动Web服务器
 cd "${PROJECT_ROOT}"
 python3 -m uvicorn src.web.api:app --host 0.0.0.0 --port ${PORT} --reload

@@ -86,11 +86,15 @@ fi
 PYTHON_VERSION=$(python3 --version)
 echo -e "${GREEN}✓ Python版本: ${PYTHON_VERSION}${NC}"
 
+# 设置 PYTHONPATH，将 src 目录加入
+export PYTHONPATH="${PROJECT_ROOT}/src:${PYTHONPATH}"
+
 # 运行交互式程序
 echo -e "${CYAN}正在启动交互式界面...${NC}"
 echo ""
 
 # 运行交互式主程序
+cd "${PROJECT_ROOT}"
 python3 -u src/interactive/interactive_main.py
 
 # 程序结束
