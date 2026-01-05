@@ -11,6 +11,11 @@ import signal
 import logging
 from pathlib import Path
 
+# 添加src目录到 Python 路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 from exchanges import ExchangeFactory
 from strategy import TradingEngine
 from storage.database.db import get_session

@@ -5,8 +5,15 @@
 
 import asyncio
 import sys
+import os
 import questionary
 from rich.console import Console
+
+# 添加src目录到 Python 路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.dirname(current_dir)
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
 
 from exchanges import ExchangeFactory
 from strategy import TradingEngine
