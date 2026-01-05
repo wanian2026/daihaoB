@@ -28,49 +28,123 @@ class InteractiveConfig:
                 questionary.Choice("欧易 (OKX)", "okx"),
             ]
         ).ask_async()
-        
+
         if answer is None:
             raise KeyboardInterrupt("用户取消操作")
-        
+
         return answer
 
     @staticmethod
-    async def input_api_credentials(exchange_name: str) -> Dict[str, str]:
-        """输入API凭证"""
+    async def select_trading_mode(exchange_name: str) -> Tuple[str, bool]:
+        """
+        选择交易模式
+        Returns:
+            (模式名称, 是否为模拟交易)
+        """
+        console.print("\n[bold cyan]请选择交易模式:[/bold cyan]")
+
+        if exchange_name == 'binance':
+            # 币安的选项
+            answer = await questionary.select(
+                "选择交易模式",
+                choices=[
+                    questionary.Choice(
+                        "🧪 模拟交易（推荐新手测试，无风险）",
+                        ("模拟交易", True)
+                    ),
+                    questionary.Choice(
+                        "💎 正式交易（使用真实资金）",
+                        ("正式交易", False)
+                    ),
+                ]
+            ).ask_async()
+        else:  # OKX
+            # OKX的选项
+            answer = await questionary.select(
+                "选择交易模式",
+                choices=[
+                    questionary.Choice(
+                        "🧪 模拟交易（推荐新手测试，无风险）",
+                        ("模拟交易", True)
+                    ),
+                    questionary.Choice(
+                        "💎 正式交易（使用真实资金）",
+                        ("正式交易", False)
+                    ),
+                ]
+            ).ask_async()
+
+        if answer is None:
+            raise KeyboardInterrupt("用户取消操作")
+
+        mode_name, is_simulation = answer
+
+        # 显示选择
+        console.print(f"[green]✓ 已选择: {mode_name}[/green]")
+
+        if is_simulation:
+            if exchange_name == 'binance':
+                console.print("\n[yellow]提示:[/yellow]")
+                console.print("- 币安模拟交易需要单独的测试网API密钥")
+                console.print("- 测试网地址: https://testnet.binancefuture.com/")
+                console.print("- 请确保使用测试网API Key，而非正式网API Key")
+            else:  # OKX
+                console.print("\n[yellow]提示:[/yellow]")
+                console.print("- OKX模拟交易需要单独的API密钥")
+                console.print("- 请确保使用模拟交易API Key，而非正式网API Key")
+        else:
+            console.print("\n[red]⚠️  警告:[/red]")
+            console.print("- 正式交易将使用真实资金")
+            console.print("- 请确保API密钥已设置安全选项（禁用提币、绑定IP等）")
+            console.print("- 建议先使用模拟交易熟悉流程")
+
+        return mode_name, is_simulation
+
+    @staticmethod
+    async def input_api_credentials(exchange_name: str, is_simulation: bool) -> Dict[str, str]:
+        """
+        输入API凭证
+
+        Args:
+            exchange_name: 交易所名称
+            is_simulation: 是否为模拟交易
+        """
         credentials = {}
 
+        # 根据交易模式显示不同的提示
+        if is_simulation:
+            mode_text = "模拟交易 (测试网)"
+        else:
+            mode_text = "正式交易 (真实资金)"
+
+        console.print(f"\n[cyan]请输入 {exchange_name.upper()} {mode_text} 的 API 凭证:[/cyan]")
+
         credentials['api_key'] = await questionary.password(
-            f"请输入 {exchange_name.upper()} 的 API Key"
+            f"API Key:"
         ).ask_async()
-        
+
         if not credentials['api_key']:
             raise ValueError("API Key 不能为空")
 
         credentials['secret'] = await questionary.password(
-            f"请输入 {exchange_name.upper()} 的 Secret"
+            f"Secret:"
         ).ask_async()
-        
+
         if not credentials['secret']:
             raise ValueError("Secret 不能为空")
 
         # OKX需要passphrase
         if exchange_name == 'okx':
             credentials['passphrase'] = await questionary.password(
-                f"请输入 {exchange_name.upper()} 的 Passphrase"
+                f"Passphrase:"
             ).ask_async()
-            
+
             if not credentials['passphrase']:
                 raise ValueError("Passphrase 不能为空")
         else:
             credentials['passphrase'] = None
 
-        # 是否使用沙盒环境
-        use_sandbox = await questionary.confirm(
-            "是否使用沙盒环境（测试）？",
-            default=False
-        ).ask_async()
-        
-        credentials['sandbox'] = use_sandbox
+        credentials['sandbox'] = is_simulation
 
         return credentials
 
@@ -79,8 +153,9 @@ class InteractiveConfig:
         """测试交易所连接"""
         print("\n正在测试交易所连接...")
         print(f"交易所: {exchange_name.upper()}")
-        print(f"沙盒模式: {'是' if credentials.get('sandbox') else '否'}")
-        
+        mode_text = "模拟交易" if credentials.get('sandbox') else "正式交易"
+        print(f"交易模式: {mode_text}")
+
         try:
             exchange = ExchangeFactory.create_exchange(
                 exchange_name,
@@ -89,26 +164,30 @@ class InteractiveConfig:
                 credentials.get('passphrase'),
                 credentials.get('sandbox', False)
             )
-            
+
             # 获取账户余额来测试连接
             balance = exchange.get_balance()
-            
+
             print(f"✓ {exchange_name.upper()} 连接成功！")
             if balance and 'USDT' in balance:
                 usdt_balance = balance['USDT'].get('free', 0)
                 print(f"  USDT余额: {usdt_balance}")
             return True
-            
+
         except Exception as e:
             print(f"✗ {exchange_name.upper()} 连接失败: {e}")
-            print(f"\n[黄色]提示:[/黄色]")
+            print(f"\n[黄色]提示:[/yellow]")
             if credentials.get('sandbox'):
-                print("- 沙盒环境可能需要单独的API密钥")
-                print("- 币安测试网: https://testnet.binance.vision/")
-                print("- 确保已使用沙盒环境的API密钥")
+                print("- 模拟交易需要单独的测试网API密钥")
+                if exchange_name == 'binance':
+                    print("- 币安期货测试网: https://testnet.binancefuture.com/")
+                else:  # OKX
+                    print("- 请在OKX平台获取模拟交易API密钥")
+                print("- 确保使用的是测试网/模拟交易的API密钥，而非正式网API密钥")
             else:
                 print("- 请检查API密钥是否正确")
                 print("- 确保API密钥有足够的权限")
+                print("- 建议使用IP绑定限制提高安全性")
             return False
 
     @staticmethod
