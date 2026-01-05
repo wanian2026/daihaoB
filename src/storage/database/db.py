@@ -16,24 +16,18 @@ except Exception:
 
 def get_db_url() -> str:
     """Build database URL from environment."""
+    # 优先使用 .env 文件中的 PGDATABASE_URL
     url = os.getenv("PGDATABASE_URL") or ""
     if url is not None and url != "":
         return url
-    from coze_workload_identity import Client
-    try:
-        client = Client()
-        env_vars = client.get_project_env_vars()
-        client.close()
-        for env_var in env_vars:
-            if env_var.key == "PGDATABASE_URL":
-                url = env_var.value.replace("'", "'\\''")
-                return url
-    except Exception as e:
-        logger.error(f"Error loading PGDATABASE_URL: {e}")
-        raise e
-    finally:
-        if url is None or url == "":
-            logger.error("PGDATABASE_URL is not set")
+    
+    # 本地开发环境：使用默认PostgreSQL连接
+    # 默认使用当前系统用户连接到本地的trading_db数据库
+    import getpass
+    default_user = getpass.getuser()
+    url = f"postgresql://@localhost:5432/trading_db"
+    
+    logger.info(f"使用默认数据库连接: {url}")
     return url
 _engine = None
 _SessionLocal = None
