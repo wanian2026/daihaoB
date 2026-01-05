@@ -1,6 +1,6 @@
 """
 合约扫描器
-扫描所有合约，识别交易机会
+扫描所有合约，识别交易机会（使用公开API）
 """
 import asyncio
 from typing import List, Dict, Optional
@@ -12,22 +12,15 @@ from analysis import SignalGenerator
 class ContractScanner:
     """合约扫描器"""
 
-    def __init__(self, exchange_name: str, api_key: str, secret: str,
-                 testnet: bool = True, password: Optional[str] = None):
+    def __init__(self, exchange_name: str):
         """
         初始化扫描器
 
         Args:
             exchange_name: 交易所名称
-            api_key: API密钥
-            secret: 密钥
-            testnet: 是否测试网
-            password: 密码（OKX需要）
         """
         self.exchange_name = exchange_name
-        self.exchange = ExchangeFactory.create_exchange(
-            exchange_name, api_key, secret, testnet, password
-        )
+        self.exchange = ExchangeFactory.create_exchange(exchange_name)
         self.signal_generator = SignalGenerator()
 
     async def scan_contracts(self, limit: int = 50) -> List[Dict]:

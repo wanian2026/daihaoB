@@ -1,5 +1,5 @@
 """
-币安交易所实现
+币安交易所实现（使用公开API）
 """
 from typing import List, Dict, Optional
 import ccxt
@@ -9,26 +9,15 @@ from .base import BaseExchange
 class BinanceExchange(BaseExchange):
     """币安交易所"""
 
-    def __init__(self, api_key: str, secret: str, testnet: bool = True, password: Optional[str] = None):
+    def __init__(self, api_key: str = "", secret: str = "", testnet: bool = False, password: Optional[str] = None):
         super().__init__(api_key, secret, testnet, password)
 
     def connect(self):
-        """连接币安"""
-        if self.testnet:
-            # 币安测试网
-            self.exchange = ccxt.binanceusdm({
-                'apiKey': self.api_key,
-                'secret': self.secret,
-                'enableRateLimit': True,
-                'test': True  # 测试模式
-            })
-        else:
-            # 币安正式网
-            self.exchange = ccxt.binanceusdm({
-                'apiKey': self.api_key,
-                'secret': self.secret,
-                'enableRateLimit': True,
-            })
+        """连接币安（使用公开API）"""
+        # 币安公开API，不需要API密钥
+        self.exchange = ccxt.binanceusdm({
+            'enableRateLimit': True,
+        })
 
         # 加载市场数据
         self.exchange.load_markets()

@@ -1,7 +1,7 @@
 """
-合约扫描系统 API
+合约扫描系统 API（使用公开API）
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,8 +16,8 @@ from scanner import ContractScanner
 # 创建FastAPI应用
 app = FastAPI(
     title="合约信号扫描系统",
-    description="基于 FVG 和流动性分析的智能交易信号系统",
-    version="1.0.0"
+    description="基于 FVG 和流动性分析的智能交易信号系统（公开API版）",
+    version="2.0.0"
 )
 
 # CORS配置
@@ -31,12 +31,8 @@ app.add_middleware(
 
 # ========== 数据模型 ==========
 
-class APIConfig(BaseModel):
+class ExchangeConfig(BaseModel):
     exchange: str
-    testnet: bool
-    api_key: str
-    secret: str
-    password: Optional[str] = None
 
 # ========== 主页路由 ==========
 
@@ -46,80 +42,24 @@ async def read_root():
     with open("web/index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-# ========== API 配置接口 ==========
+# ========== 交易所接口 ==========
 
-@app.get("/api/config")
-async def get_config():
-    """获取API配置"""
+@app.get("/api/available-exchanges")
+async def get_available_exchanges():
+    """获取可用交易所列表"""
+    return {
+        "success": True,
+        "exchanges": [
+            {"name": "binance", "display": "币安 (Binance)"},
+            {"name": "okx", "display": "欧易 (OKX)"}
+        ]
+    }
+
+@app.post("/api/test-connection")
+async def test_connection(config: ExchangeConfig):
+    """测试交易所连接"""
     try:
-        config_path = os.path.join(os.path.dirname(__file__), "../../config/api_keys.json")
-
-        if not os.path.exists(config_path):
-            return {"success": True, "config": None}
-
-        with open(config_path, 'r', encoding='utf-8') as f:
-            api_keys = json.load(f)
-
-        if 'exchanges' in api_keys and api_keys['exchanges']:
-            for exchange_name in ['okx', 'binance']:
-                if exchange_name in api_keys['exchanges']:
-                    exchange_data = api_keys['exchanges'][exchange_name]
-                    return {
-                        "success": True,
-                        "config": {
-                            "exchange": exchange_name,
-                            "testnet": exchange_data.get('testnet', True),
-                            "api_key": exchange_data.get('api_key', ''),
-                            "secret": '',
-                            "password": ''
-                        }
-                    }
-
-        return {"success": True, "config": None}
-    except Exception as e:
-        return {"success": False, "message": f"加载配置失败: {str(e)}"}
-
-@app.post("/api/config")
-async def save_config(config: APIConfig):
-    """保存API配置"""
-    try:
-        config_path = os.path.join(os.path.dirname(__file__), "../../config/api_keys.json")
-
-        existing_config = {}
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                existing_config = json.load(f)
-
-        if 'exchanges' not in existing_config:
-            existing_config['exchanges'] = {}
-
-        existing_config['exchanges'][config.exchange] = {
-            'api_key': config.api_key,
-            'secret': config.secret,
-            'testnet': config.testnet
-        }
-
-        if config.exchange == 'okx' and config.password:
-            existing_config['exchanges']['okx']['password'] = config.password
-
-        with open(config_path, 'w', encoding='utf-8') as f:
-            json.dump(existing_config, f, indent=2, ensure_ascii=False)
-
-        return {"success": True, "message": "API配置保存成功"}
-    except Exception as e:
-        return {"success": False, "message": f"保存失败: {str(e)}"}
-
-@app.post("/api/test")
-async def test_connection(config: APIConfig):
-    """测试API连接"""
-    try:
-        exchange = ExchangeFactory.create_exchange(
-            config.exchange,
-            config.api_key,
-            config.secret,
-            config.testnet,
-            config.password
-        )
+        exchange = ExchangeFactory.create_exchange(config.exchange)
 
         # 获取一个交易对测试
         symbols = exchange.get_futures_symbols()
@@ -128,7 +68,9 @@ async def test_connection(config: APIConfig):
             return {
                 "success": True,
                 "message": f"连接成功！获取到 {len(symbols)} 个合约",
-                "symbols_count": len(symbols)
+                "symbols_count": len(symbols),
+                "sample_symbol": symbols[0],
+                "sample_price": price
             }
         else:
             return {"success": False, "message": "未找到合约"}
@@ -139,12 +81,12 @@ async def test_connection(config: APIConfig):
 # ========== 扫描接口 ==========
 
 @app.post("/api/scan")
-async def scan_contracts(config: APIConfig, limit: int = 50):
+async def scan_contracts(config: ExchangeConfig, limit: int = Query(50, description="扫描数量限制")):
     """
     扫描合约，生成交易信号
 
     Args:
-        config: API配置
+        config: 交易所配置
         limit: 扫描数量限制
 
     Returns:
@@ -152,13 +94,7 @@ async def scan_contracts(config: APIConfig, limit: int = 50):
     """
     try:
         # 创建扫描器
-        scanner = ContractScanner(
-            config.exchange,
-            config.api_key,
-            config.secret,
-            config.testnet,
-            config.password
-        )
+        scanner = ContractScanner(config.exchange)
 
         # 执行扫描
         signals = scanner.scan_contracts_sync(limit=limit)

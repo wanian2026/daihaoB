@@ -22,7 +22,7 @@
     <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
         <div>
             <h1 class="text-2xl font-bold">🎯 合约信号扫描系统</h1>
-            <p class="text-sm text-gray-400 mt-1">基于 FVG 和流动性分析的智能交易信号</p>
+            <p class="text-sm text-gray-400 mt-1">基于 FVG 和流动性分析的智能交易信号（公开API版）</p>
         </div>
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
@@ -32,54 +32,25 @@
         </div>
     </div>
 
-    <!-- API配置 -->
-    <div class="mb-6">
-        <div class="flex items-center justify-between mb-2">
-            <h2 class="text-lg font-bold border-b border-gray-700 pb-1">🔌 API 配置</h2>
-            <button @click="showApiConfig = !showApiConfig" class="text-sm text-gray-400 hover:text-white">
-                <span x-text="showApiConfig ? '▼ 收起' : '▶ 展开'"></span>
-            </button>
-        </div>
-        <div x-show="showApiConfig" class="bg-gray-800 border border-gray-700 p-6 rounded-lg">
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="text-xs text-gray-400 uppercase block mb-1">交易所</label>
-                    <select x-model="apiConfig.exchange" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
-                        <option value="okx">欧易 (OKX)</option>
-                        <option value="binance">币安 (Binance)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-400 uppercase block mb-1">交易模式</label>
-                    <select x-model="apiConfig.testnet" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
-                        <option :value="true">🧪 模拟交易</option>
-                        <option :value="false">💎 真实交易</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-400 uppercase block mb-1">API Key</label>
-                    <input type="text" x-model="apiConfig.api_key" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white" placeholder="输入 API Key">
-                </div>
-                <div>
-                    <label class="text-xs text-gray-400 uppercase block mb-1">Secret</label>
-                    <input type="password" x-model="apiConfig.secret" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white" placeholder="输入 Secret">
-                </div>
-                <div x-show="apiConfig.exchange === 'okx'" class="col-span-2">
-                    <label class="text-xs text-gray-400 uppercase block mb-1">Password</label>
-                    <input type="password" x-model="apiConfig.password" class="w-full bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white" placeholder="输入 Password（OKX 必填）">
-                </div>
+    <!-- 交易所选择 -->
+    <div class="mb-6 bg-gray-800 border border-gray-700 p-6 rounded-lg">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-1">🏦 选择交易所</h2>
+                <p class="text-sm text-gray-400">选择要扫描的交易所</p>
             </div>
             <div class="flex gap-2">
+                <select x-model="selectedExchange" @change="testConnection()" class="bg-gray-700 border border-gray-600 px-4 py-2 text-sm text-white">
+                    <option value="okx">欧易 (OKX)</option>
+                    <option value="binance">币安 (Binance)</option>
+                </select>
                 <button @click="testConnection()" :disabled="testingConnection" class="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-600">
                     <span x-show="!testingConnection">🔌 测试连接</span>
                     <span x-show="testingConnection">测试中...</span>
                 </button>
-                <button @click="saveApiConfig()" class="px-4 py-2 bg-gray-600 text-white text-sm hover:bg-gray-700">
-                    💾 保存配置
-                </button>
             </div>
-            <div x-show="connectionStatus.message" class="mt-3 p-3 rounded" :class="connectionStatus.connected ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'" x-text="connectionStatus.message"></div>
         </div>
+        <div x-show="connectionStatus.message" class="mt-3 p-3 rounded" :class="connectionStatus.connected ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'" x-text="connectionStatus.message"></div>
     </div>
 
     <!-- 扫描控制 -->
@@ -258,12 +229,12 @@
 <script>
     function scannerApp() {
         return {
-            showApiConfig: true,
             showDetail: {},
             scanning: false,
             loading: false,
             loadingMessage: '',
             testingConnection: false,
+            selectedExchange: 'okx',
             scanLimit: 50,
             signals: [],
             scanStats: {
@@ -275,72 +246,24 @@
                 message: '',
                 connected: false
             },
-            apiConfig: {
-                exchange: 'okx',
-                testnet: true,
-                api_key: '',
-                secret: '',
-                password: ''
-            },
 
             init() {
-                this.loadApiConfig();
-            },
-
-            async loadApiConfig() {
-                try {
-                    const response = await fetch('/api/config');
-                    const data = await response.json();
-                    if (data.success && data.config) {
-                        this.apiConfig = data.config;
-                    }
-                } catch (error) {
-                    console.error('加载API配置失败:', error);
-                }
-            },
-
-            async saveApiConfig() {
-                try {
-                    const response = await fetch('/api/config', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(this.apiConfig)
-                    });
-                    const data = await response.json();
-
-                    if (data.success) {
-                        alert('API配置保存成功');
-                    } else {
-                        alert('保存失败: ' + data.message);
-                    }
-                } catch (error) {
-                    alert('保存失败: ' + error.message);
-                }
+                this.testConnection();
             },
 
             async testConnection() {
-                if (!this.apiConfig.api_key || !this.apiConfig.secret) {
-                    alert('请填写API Key和Secret');
-                    return;
-                }
-
-                if (this.apiConfig.exchange === 'okx' && !this.apiConfig.password) {
-                    alert('OKX需要填写Password');
-                    return;
-                }
-
                 this.testingConnection = true;
 
                 try {
-                    const response = await fetch('/api/test', {
+                    const response = await fetch('/api/test-connection', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(this.apiConfig)
+                        body: JSON.stringify({exchange: this.selectedExchange})
                     });
                     const data = await response.json();
 
                     this.connectionStatus.connected = data.success;
-                    this.connectionStatus.message = data.success ? '连接成功！' : '连接失败：' + data.message;
+                    this.connectionStatus.message = data.success ? '连接成功！' + (data.message ? ' ' + data.message : '') : '连接失败：' + data.message;
                 } catch (error) {
                     this.connectionStatus.connected = false;
                     this.connectionStatus.message = '连接失败：' + error.message;
@@ -350,11 +273,6 @@
             },
 
             async startScan() {
-                if (!this.apiConfig.api_key || !this.apiConfig.secret) {
-                    alert('请先配置API密钥');
-                    return;
-                }
-
                 this.scanning = true;
                 this.loading = true;
                 this.loadingMessage = '正在扫描合约...';
@@ -364,7 +282,7 @@
                     const response = await fetch('/api/scan?limit=' + this.scanLimit, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(this.apiConfig)
+                        body: JSON.stringify({exchange: this.selectedExchange})
                     });
 
                     const data = await response.json();

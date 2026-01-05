@@ -1,5 +1,5 @@
 """
-欧易交易所实现
+欧易交易所实现（使用公开API）
 """
 from typing import List, Dict, Optional
 import ccxt
@@ -9,28 +9,15 @@ from .base import BaseExchange
 class OKXExchange(BaseExchange):
     """欧易交易所"""
 
-    def __init__(self, api_key: str, secret: str, testnet: bool = True, password: Optional[str] = None):
+    def __init__(self, api_key: str = "", secret: str = "", testnet: bool = False, password: Optional[str] = None):
         super().__init__(api_key, secret, testnet, password)
 
     def connect(self):
-        """连接欧易"""
-        if self.testnet:
-            # 欧易模拟盘
-            self.exchange = ccxt.okx({
-                'apiKey': self.api_key,
-                'secret': self.secret,
-                'password': self.password,
-                'enableRateLimit': True,
-                'sandbox': True  # 模拟盘
-            })
-        else:
-            # 欧易正式盘
-            self.exchange = ccxt.okx({
-                'apiKey': self.api_key,
-                'secret': self.secret,
-                'password': self.password,
-                'enableRateLimit': True,
-            })
+        """连接欧易（使用公开API）"""
+        # 欧易公开API，不需要API密钥
+        self.exchange = ccxt.okx({
+            'enableRateLimit': True,
+        })
 
         # 加载市场数据
         self.exchange.load_markets()
