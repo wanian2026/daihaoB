@@ -94,7 +94,7 @@ async def read_root():
 
 @app.post("/api/exchange/test")
 async def test_exchange_connection(config: ExchangeConfig):
-    """测试交易所连接"""
+    """测试交易所连接并获取账户信息"""
     try:
         exchange = ExchangeFactory.create_exchange(
             config.exchange,
@@ -103,11 +103,32 @@ async def test_exchange_connection(config: ExchangeConfig):
             config.password,
             config.testnet
         )
+
+        # 获取余额信息
         balance = exchange.get_balance()
+
+        # 计算总权益（所有可用余额）
+        total_equity = 0
+        for currency, info in balance.items():
+            if info.get('free'):
+                total_equity += float(info['free'])
+
+        # 获取未实现盈亏（如果支持）
+        unrealized_pnl = 0
+        try:
+            positions = exchange.get_positions()
+            for position in positions:
+                if 'unrealized_pnl' in position:
+                    unrealized_pnl += float(position['unrealized_pnl'])
+        except:
+            pass
+
         return {
             "success": True,
-            "message": "连接成功",
-            "balance": balance.get('USDT', {}).get('free', 0)
+            "message": "连接成功！已获取账户信息",
+            "balance": balance.get('USDT', {}).get('free', 0),
+            "total_equity": total_equity,
+            "unrealized_pnl": unrealized_pnl
         }
     except Exception as e:
         return {

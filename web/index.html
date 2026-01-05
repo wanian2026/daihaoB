@@ -84,24 +84,55 @@
     <!-- API配置 -->
     <div class="mb-6">
         <div class="flex items-center justify-between mb-2">
-            <h2 class="text-lg font-bold border-b border-black pb-1">API配置</h2>
+            <h2 class="text-lg font-bold border-b border-black pb-1">账户连接</h2>
             <button @click="showApiConfig = !showApiConfig" class="text-sm text-gray-500" x-text="showApiConfig ? '收起' : '展开'">
             </button>
         </div>
         <div x-show="showApiConfig" class="border border-gray-300 p-4">
+            <!-- 连接状态显示 -->
+            <div x-show="connectionStatus.checked" class="mb-4 p-4 rounded" :class="connectionStatus.connected ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-3 h-3 rounded-full" :class="connectionStatus.connected ? 'bg-green-500' : 'bg-red-500'"></div>
+                    <span class="font-bold" x-text="connectionStatus.connected ? '已连接' : '连接失败'"></span>
+                </div>
+                <div x-show="connectionStatus.message" class="text-sm" :class="connectionStatus.connected ? 'text-green-700' : 'text-red-700'" x-text="connectionStatus.message"></div>
+                <!-- 账户信息 -->
+                <div x-show="connectionStatus.connected && accountInfo" class="mt-3 pt-3 border-t border-green-200">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-600">可用余额：</span>
+                            <span class="font-bold" x-text="accountInfo.balance ? accountInfo.balance.toFixed(2) + ' USDT' : '-'"></span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">账户类型：</span>
+                            <span x-text="apiConfig.testnet ? '模拟交易' : '真实交易'"></span>
+                        </div>
+                        <div x-show="accountInfo.total_equity">
+                            <span class="text-gray-600">总权益：</span>
+                            <span x-text="accountInfo.total_equity ? accountInfo.total_equity.toFixed(2) + ' USDT' : '-'"></span>
+                        </div>
+                        <div x-show="accountInfo.unrealized_pnl">
+                            <span class="text-gray-600">未实现盈亏：</span>
+                            <span :class="accountInfo.unrealized_pnl >= 0 ? 'text-green-600' : 'text-red-600'" x-text="accountInfo.unrealized_pnl ? accountInfo.unrealized_pnl.toFixed(2) + ' USDT' : '-'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API配置表单 -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="text-xs text-gray-600 uppercase block mb-1">交易所</label>
-                    <select x-model="apiConfig.exchange" class="w-full border border-gray-300 px-3 py-2 text-sm">
+                    <select x-model="apiConfig.exchange" @change="onExchangeChange()" class="w-full border border-gray-300 px-3 py-2 text-sm">
                         <option value="okx">欧易 (OKX)</option>
                         <option value="binance">币安 (Binance)</option>
                     </select>
                 </div>
                 <div>
-                    <label class="text-xs text-gray-600 uppercase block mb-1">测试网</label>
-                    <select x-model="apiConfig.testnet" class="w-full border border-gray-300 px-3 py-2 text-sm">
-                        <option :value="true">是</option>
-                        <option :value="false">否</option>
+                    <label class="text-xs text-gray-600 uppercase block mb-1">交易模式</label>
+                    <select x-model="apiConfig.testnet" class="w-full border border-gray-300 px-3 py-2 text-sm" :class="apiConfig.testnet ? 'text-blue-600' : 'text-red-600'">
+                        <option :value="true">🧪 模拟交易（无风险）</option>
+                        <option :value="false">💎 真实交易（使用真金白银）</option>
                     </select>
                 </div>
                 <div>
@@ -112,14 +143,20 @@
                     <label class="text-xs text-gray-600 uppercase block mb-1">Secret</label>
                     <input type="password" x-model="apiConfig.secret" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="输入Secret">
                 </div>
-                <div x-show="apiConfig.exchange === 'okx'">
+                <div x-show="apiConfig.exchange === 'okx'" class="col-span-2">
                     <label class="text-xs text-gray-600 uppercase block mb-1">Password</label>
                     <input type="password" x-model="apiConfig.password" class="w-full border border-gray-300 px-3 py-2 text-sm" placeholder="输入Password">
                 </div>
             </div>
-            <button @click="saveApiConfig()" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800">
-                保存API配置
-            </button>
+            <div class="flex gap-2">
+                <button @click="testConnection()" :disabled="testingConnection" class="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-300">
+                    <span x-show="!testingConnection">测试连接</span>
+                    <span x-show="testingConnection">测试中...</span>
+                </button>
+                <button @click="saveApiConfig()" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800">
+                    保存配置
+                </button>
+            </div>
         </div>
     </div>
 
@@ -435,6 +472,13 @@
             searchResult: '',
             showSymbolList: false,
             availableSymbols: [],
+            connectionStatus: {
+                checked: false,
+                connected: false,
+                message: ''
+            },
+            accountInfo: null,
+            testingConnection: false,
             apiConfig: {
                 exchange: 'okx',
                 testnet: true,
@@ -497,6 +541,55 @@
                     }
                 } catch (error) {
                     alert('保存失败: ' + error.message);
+                }
+            },
+
+            async testConnection() {
+                // 验证必填字段
+                if (!this.apiConfig.api_key || !this.apiConfig.secret) {
+                    alert('请填写API Key和Secret');
+                    return;
+                }
+
+                if (this.apiConfig.exchange === 'okx' && !this.apiConfig.password) {
+                    alert('OKX需要填写Password');
+                    return;
+                }
+
+                this.testingConnection = true;
+                this.connectionStatus.checked = false;
+
+                try {
+                    const response = await fetch('/api/exchange/test', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.apiConfig)
+                    });
+                    const data = await response.json();
+
+                    this.connectionStatus.checked = true;
+                    this.connectionStatus.connected = data.success;
+
+                    if (data.success) {
+                        this.connectionStatus.message = '连接成功！已获取账户信息';
+                        this.accountInfo = {
+                            balance: data.balance,
+                            total_equity: data.total_equity || null,
+                            unrealized_pnl: data.unrealized_pnl || null
+                        };
+                    } else {
+                        this.connectionStatus.message = '连接失败：' + data.message;
+                        this.accountInfo = null;
+                    }
+                } catch (error) {
+                    this.connectionStatus.checked = true;
+                    this.connectionStatus.connected = false;
+                    this.connectionStatus.message = '连接失败：' + error.message;
+                    this.accountInfo = null;
+                } finally {
+                    this.testingConnection = false;
                 }
             },
 
@@ -668,6 +761,16 @@
                 } catch (error) {
                     console.error('检查交易状态失败:', error);
                 }
+            },
+
+            onExchangeChange() {
+                // 切换交易所时，清空连接状态
+                this.connectionStatus = {
+                    checked: false,
+                    connected: false,
+                    message: ''
+                };
+                this.accountInfo = null;
             },
 
             async createConfig() {
