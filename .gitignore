@@ -52,6 +52,12 @@ logs/
 *.db
 *.sqlite
 
+# App packages (keep structure, ignore temp files)
+# *.app/
+*.app/Contents/MacOS/*.pyc
+*.app/Contents/MacOS/__pycache__/
+*.app/Contents/Resources/.DS_Store
+
 # Temporary files
 tmp/
 temp/
