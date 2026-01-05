@@ -150,15 +150,15 @@
                     <div class="grid grid-cols-4 gap-4 mb-4">
                         <div>
                             <p class="text-xs text-gray-400 uppercase">入场价</p>
-                            <p class="text-lg font-bold" x-text="signal.entry_price.toFixed(2)"></p>
+                            <p class="text-lg font-bold" x-text="signal.entry_price.toFixed(6)"></p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-400 uppercase">止盈价</p>
-                            <p class="text-lg font-bold text-green-400" x-text="signal.take_profit ? signal.take_profit.toFixed(2) : '-'"></p>
+                            <p class="text-lg font-bold text-green-400" x-text="signal.take_profit ? signal.take_profit.toFixed(6) : '-'"></p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-400 uppercase">止损价</p>
-                            <p class="text-lg font-bold text-red-400" x-text="signal.stop_loss ? signal.stop_loss.toFixed(2) : '-'"></p>
+                            <p class="text-lg font-bold text-red-400" x-text="signal.stop_loss ? signal.stop_loss.toFixed(6) : '-'"></p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-400 uppercase">交易所</p>
@@ -192,11 +192,11 @@
                                     </div>
                                     <div>
                                         <p class="text-gray-400">缺口范围</p>
-                                        <p x-text="signal.fvg_info.gap_low.toFixed(2) + ' - ' + signal.fvg_info.gap_high.toFixed(2)"></p>
+                                        <p x-text="signal.fvg_info.gap_low.toFixed(6) + ' - ' + signal.fvg_info.gap_high.toFixed(6)"></p>
                                     </div>
                                     <div>
                                         <p class="text-gray-400">缺口大小</p>
-                                        <p x-text="signal.fvg_info.size.toFixed(2)"></p>
+                                        <p x-text="signal.fvg_info.size.toFixed(6)"></p>
                                     </div>
                                 </div>
                             </div>

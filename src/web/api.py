@@ -83,10 +83,10 @@ async def test_connection(config: ExchangeConfig):
             price = exchange.get_current_price(symbols[0])
             return {
                 "success": True,
-                "message": f"连接成功！获取到 {len(symbols)} 个合约",
+                "message": f"连接成功！获取到 {len(symbols)} 个合约，{symbols[0]} 当前价格 {price:.6f}",
                 "symbols_count": len(symbols),
                 "sample_symbol": symbols[0],
-                "sample_price": price
+                "sample_price": round(price, 6)
             }
         else:
             return {"success": False, "message": "未找到合约"}
