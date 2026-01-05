@@ -33,6 +33,7 @@ app.add_middleware(
 
 class ExchangeConfig(BaseModel):
     exchange: str
+    timeframe: str = "1h"  # K线周期
 
 # ========== 主页路由 ==========
 
@@ -50,8 +51,23 @@ async def get_available_exchanges():
     return {
         "success": True,
         "exchanges": [
-            {"name": "binance", "display": "币安 (Binance)"},
-            {"name": "okx", "display": "欧易 (OKX)"}
+            {"name": "binance", "display": "币安 (Binance)"}
+        ]
+    }
+
+@app.get("/api/available-timeframes")
+async def get_available_timeframes():
+    """获取可用K线周期列表"""
+    return {
+        "success": True,
+        "timeframes": [
+            {"value": "5m", "display": "5分钟"},
+            {"value": "15m", "display": "15分钟"},
+            {"value": "30m", "display": "30分钟"},
+            {"value": "1h", "display": "1小时"},
+            {"value": "4h", "display": "4小时"},
+            {"value": "1d", "display": "1天"},
+            {"value": "1w", "display": "1周"}
         ]
     }
 
@@ -93,8 +109,8 @@ async def scan_contracts(config: ExchangeConfig, limit: int = Query(50, descript
         扫描结果
     """
     try:
-        # 创建扫描器
-        scanner = ContractScanner(config.exchange)
+        # 创建扫描器（传入K线周期）
+        scanner = ContractScanner(config.exchange, config.timeframe)
 
         # 执行扫描
         signals = scanner.scan_contracts(limit=limit)
@@ -118,6 +134,7 @@ async def scan_contracts(config: ExchangeConfig, limit: int = Query(50, descript
                 "scanned": limit,
                 "found": len(signals),
                 "max_confidence": max_confidence,
+                "timeframe": config.timeframe,
                 "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
         }

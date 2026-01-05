@@ -12,14 +12,16 @@ from analysis import SignalGenerator
 class ContractScanner:
     """合约扫描器"""
 
-    def __init__(self, exchange_name: str):
+    def __init__(self, exchange_name: str, timeframe: str = "1h"):
         """
         初始化扫描器
 
         Args:
             exchange_name: 交易所名称
+            timeframe: K线周期（默认1小时）
         """
         self.exchange_name = exchange_name
+        self.timeframe = timeframe
         self.exchange = ExchangeFactory.create_exchange(exchange_name)
         self.signal_generator = SignalGenerator()
 
@@ -33,7 +35,7 @@ class ContractScanner:
         Returns:
             信号列表（按信心度排序）
         """
-        print(f"开始扫描 {self.exchange_name} 合约...")
+        print(f"开始扫描 {self.exchange_name} 合约（{self.timeframe}周期）...")
 
         # 获取所有合约交易对
         symbols = self.exchange.get_futures_symbols()
@@ -47,8 +49,8 @@ class ContractScanner:
 
         for symbol in symbols:
             try:
-                # 获取K线数据
-                ohlcv = self.exchange.get_ohlcv(symbol, timeframe='1h', limit=100)
+                # 获取K线数据（使用配置的K线周期）
+                ohlcv = self.exchange.get_ohlcv(symbol, timeframe=self.timeframe, limit=100)
 
                 # 获取当前价格
                 current_price = self.exchange.get_current_price(symbol)
@@ -67,6 +69,7 @@ class ContractScanner:
                 # 添加额外信息
                 signal['symbol'] = symbol
                 signal['exchange'] = self.exchange_name
+                signal['timeframe'] = self.timeframe
                 signal['timestamp'] = datetime.now().isoformat()
 
                 # 只保存有效信号

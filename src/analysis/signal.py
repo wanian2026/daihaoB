@@ -82,39 +82,69 @@ class SignalGenerator:
         # 获取最强的 FVG（信心度最高）
         best_fvg = max(fvg_list, key=lambda x: x['confidence'])
 
-        # 计算综合信心度
-        confidence = self._calculate_total_confidence(
-            best_fvg, liquidity, ticker
-        )
+        # 检查当前价格是否与FVG相关（在FVG附近）
+        fvg_low = best_fvg['gap_low']
+        fvg_high = best_fvg['gap_high']
+        fvg_size = best_fvg['size']
 
-        if confidence < 30:  # 最低信心度阈值
-            signal['reason'] = f'信心度不足 ({confidence:.1f}%)'
-            return signal
-
-        # 根据FVG类型确定交易方向
+        # 计算价格与FVG的距离（百分比）
         if best_fvg['type'] == 'bullish':
-            signal['direction'] = 'long'
-            # 做多：入场价在 FVG 上沿附近
-            signal['entry_price'] = best_fvg['gap_high']
+            # 牛市FVG：价格如果在FVG下方附近或进入FVG区间，考虑做多
+            price_distance_low = abs(current_price - fvg_low) / current_price
+            price_distance_high = abs(current_price - fvg_high) / current_price
 
-            # 止损：FVG 下沿下方
-            signal['stop_loss'] = best_fvg['gap_low'] * 0.995  # 下方0.5%
+            # 如果价格在FVG区间内，或者在FVG下沿附近2%以内
+            if current_price >= fvg_low or price_distance_low <= 0.02:
+                signal['direction'] = 'long'
 
-            # 止盈：根据盈亏比
-            risk = signal['entry_price'] - signal['stop_loss']
-            signal['take_profit'] = signal['entry_price'] + risk * 2.0  # 2:1盈亏比
+                # 入场价：当前价格
+                signal['entry_price'] = current_price
+
+                # 止损价：FVG下沿下方2%
+                signal['stop_loss'] = fvg_low * 0.98
+
+                # 止盈价：基于2:1盈亏比
+                risk = signal['entry_price'] - signal['stop_loss']
+                signal['take_profit'] = signal['entry_price'] + risk * 2.0
+
+                # 如果价格已经在FVG上方，可以考虑更激进的入场价（FVG下沿附近）
+                if current_price > fvg_high:
+                    signal['reason'] = f"价格回踩FVG {fvg_low:.2f}-{fvg_high:.2f} 支撑位，做多机会"
+                else:
+                    signal['reason'] = f"价格在FVG {fvg_low:.2f}-{fvg_high:.2f} 支撑区，做多机会"
+
+            else:
+                signal['reason'] = f'价格距离FVG太远 ({price_distance_low*100:.2f}%)，不宜进场'
+                return signal
 
         elif best_fvg['type'] == 'bearish':
-            signal['direction'] = 'short'
-            # 做空：入场价在 FVG 下沿附近
-            signal['entry_price'] = best_fvg['gap_low']
+            # 熊市FVG：价格如果在FVG上方附近或进入FVG区间，考虑做空
+            price_distance_low = abs(current_price - fvg_low) / current_price
+            price_distance_high = abs(current_price - fvg_high) / current_price
 
-            # 止损：FVG 上沿上方
-            signal['stop_loss'] = best_fvg['gap_high'] * 1.005  # 上方0.5%
+            # 如果价格在FVG区间内，或者在FVG上沿附近2%以内
+            if current_price <= fvg_high or price_distance_high <= 0.02:
+                signal['direction'] = 'short'
 
-            # 止盈：根据盈亏比
-            risk = signal['stop_loss'] - signal['entry_price']
-            signal['take_profit'] = signal['entry_price'] - risk * 2.0  # 2:1盈亏比
+                # 入场价：当前价格
+                signal['entry_price'] = current_price
+
+                # 止损价：FVG上沿上方2%
+                signal['stop_loss'] = fvg_high * 1.02
+
+                # 止盈价：基于2:1盈亏比
+                risk = signal['stop_loss'] - signal['entry_price']
+                signal['take_profit'] = signal['entry_price'] - risk * 2.0
+
+                # 如果价格已经在FVG下方，可以考虑更激进的入场价（FVG上沿附近）
+                if current_price < fvg_low:
+                    signal['reason'] = f"价格反弹FVG {fvg_low:.2f}-{fvg_high:.2f} 阻力位，做空机会"
+                else:
+                    signal['reason'] = f"价格在FVG {fvg_low:.2f}-{fvg_high:.2f} 阻力区，做空机会"
+
+            else:
+                signal['reason'] = f'价格距离FVG太远 ({price_distance_high*100:.2f}%)，不宜进场'
+                return signal
 
         # 计算盈亏比
         if signal['take_profit'] and signal['stop_loss'] and signal['entry_price']:
@@ -128,6 +158,15 @@ class SignalGenerator:
             if risk > 0:
                 signal['risk_reward_ratio'] = reward / risk
 
+        # 计算综合信心度
+        confidence = self._calculate_total_confidence(
+            best_fvg, liquidity, ticker, signal
+        )
+
+        if confidence < 40:  # 提高最低信心度阈值
+            signal['reason'] = f'信心度不足 ({confidence:.1f}%)'
+            return signal
+
         # 检查流动性是否充足
         if liquidity['liquidity_score'] < 30:
             signal['reason'] = '流动性不足'
@@ -137,36 +176,87 @@ class SignalGenerator:
         signal['has_signal'] = True
         signal['confidence'] = confidence
         signal['fvg_info'] = best_fvg
-        signal['reason'] = f"FVG {best_fvg['type'].upper()} 信号"
 
         return signal
 
-    def _calculate_total_confidence(self, fvg: Dict, liquidity: Dict, ticker: Dict) -> float:
+    def _calculate_total_confidence(self, fvg: Dict, liquidity: Dict,
+                                     ticker: Dict, signal: Dict) -> float:
         """
-        计算总信心度
+        计算总信心度（重新修正）
 
         Args:
             fvg: FVG 信息
             liquidity: 流动性分析
             ticker: 行情数据
+            signal: 信号信息（包含价格数据）
 
         Returns:
             总信心度 (0-100)
         """
-        # FVG 信心度 (40%)
-        fvg_confidence = fvg['confidence'] * 0.4
+        # 1. FVG 信心度 (35%) - 基于FVG大小和强度
+        fvg_confidence = fvg['confidence'] * 0.35
 
-        # 流动性信心度 (30%)
-        liquidity_confidence = liquidity['liquidity_score'] * 0.3
+        # 2. 流动性信心度 (25%) - 基于订单簿深度
+        liquidity_confidence = liquidity['liquidity_score'] * 0.25
 
-        # 市场波动率信心度 (15%)
+        # 3. 价格与FVG的匹配度 (20%) - 价格越接近FVG边缘，信心度越高
+        fvg_low = fvg['gap_low']
+        fvg_high = fvg['gap_high']
+        current_price = signal['entry_price']
+
+        if fvg['type'] == 'bullish':
+            # 做多：价格在FVG下方或进入FVG区间
+            if current_price < fvg_low:
+                # 价格在FVG下方，计算距离
+                distance = abs(current_price - fvg_low) / current_price
+                price_match = max(0, 100 - distance * 5000)  # 距离越近分数越高
+            else:
+                # 价格在FVG区间内，分数最高
+                price_match = 100
+        else:
+            # 做空：价格在FVG上方或进入FVG区间
+            if current_price > fvg_high:
+                # 价格在FVG上方，计算距离
+                distance = abs(current_price - fvg_high) / current_price
+                price_match = max(0, 100 - distance * 5000)
+            else:
+                # 价格在FVG区间内，分数最高
+                price_match = 100
+
+        price_match_confidence = price_match * 0.20
+
+        # 4. 市场波动率 (10%) - 适度波动率有利于交易
         volatility = abs(ticker.get('change', 0))
-        volatility_confidence = min(volatility * 5, 100) * 0.15  # 波动率越大信心度越高（但不超过100）
+        # 理想波动率在 2% - 8% 之间
+        if 0.02 <= volatility <= 0.08:
+            volatility_score = 100
+        elif volatility < 0.02:
+            volatility_score = 50  # 波动率太低
+        else:
+            volatility_score = 80  # 波动率稍高，但仍可交易
 
-        # 买卖不平衡信心度 (15%)
-        imbalance = abs(liquidity['imbalance_ratio'])
-        imbalance_confidence = imbalance * 100 * 0.15
+        volatility_confidence = volatility_score * 0.10
 
-        total_confidence = fvg_confidence + liquidity_confidence + volatility_confidence + imbalance_confidence
+        # 5. 盈亏比 (10%) - 盈亏比越高，信心度越高
+        rr_ratio = signal.get('risk_reward_ratio', 0)
+        if rr_ratio >= 2.0:
+            rr_score = 100
+        elif rr_ratio >= 1.5:
+            rr_score = 80
+        elif rr_ratio >= 1.0:
+            rr_score = 60
+        else:
+            rr_score = 40
+
+        rr_confidence = rr_score * 0.10
+
+        # 计算总信心度
+        total_confidence = (
+            fvg_confidence +
+            liquidity_confidence +
+            price_match_confidence +
+            volatility_confidence +
+            rr_confidence
+        )
 
         return min(total_confidence, 100)

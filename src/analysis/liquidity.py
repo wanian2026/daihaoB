@@ -90,7 +90,7 @@ class LiquidityAnalyzer:
 
     def _calculate_liquidity_score(self, bid_volume: float, ask_volume: float, depth_ratio: float) -> float:
         """
-        计算流动性评分
+        计算流动性评分（重新修正）
 
         Args:
             bid_volume: 买单总量
@@ -100,29 +100,36 @@ class LiquidityAnalyzer:
         Returns:
             流动性评分 (0-100)
         """
-        # 基础评分：总订单量
+        # 1. 总订单量评分 (50分) - 流动性基础
         total_volume = bid_volume + ask_volume
 
-        # 根据总量打分（这里使用对数刻度）
-        if total_volume > 1000000:
-            volume_score = 100
-        elif total_volume > 500000:
-            volume_score = 80
-        elif total_volume > 100000:
-            volume_score = 60
-        elif total_volume > 50000:
+        if total_volume > 5000000:  # 500万以上
+            volume_score = 50
+        elif total_volume > 1000000:  # 100万-500万
+            volume_score = 45
+        elif total_volume > 500000:   # 50万-100万
             volume_score = 40
-        elif total_volume > 10000:
-            volume_score = 20
+        elif total_volume > 100000:   # 10万-50万
+            volume_score = 35
+        elif total_volume > 50000:    # 5万-10万
+            volume_score = 30
+        elif total_volume > 10000:    # 1万-5万
+            volume_score = 25
         else:
-            volume_score = 10
+            volume_score = 20
 
-        # 深度评分
-        depth_score = depth_ratio * 40  # 最多40分
+        # 2. 深度评分 (30分) - 市价附近的流动性
+        # 深度比越高，说明流动性越集中在市价附近
+        depth_score = depth_ratio * 30  # 最多30分
 
-        # 平衡评分：买卖平衡
-        balance = min(bid_volume, ask_volume) / (bid_volume + ask_volume + 1e-6)
-        balance_score = balance * 20  # 最多20分
+        # 3. 买卖平衡评分 (20分) - 买卖单平衡度
+        if total_volume > 0:
+            balance = min(bid_volume, ask_volume) / total_volume
+            # 平衡度0.5表示完美平衡
+            balance_score = balance * 40  # 最多40分，归一化到20分
+            balance_score = min(balance_score, 20)
+        else:
+            balance_score = 0
 
         total_score = volume_score + depth_score + balance_score
         return min(total_score, 100)

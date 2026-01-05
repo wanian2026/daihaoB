@@ -88,7 +88,7 @@ class FVGAnalyzer:
 
     def _calculate_confidence(self, fvg_ratio: float, fvg_type: str) -> float:
         """
-        计算 FVG 信心度
+        计算 FVG 信心度（重新修正）
 
         Args:
             fvg_ratio: FVG 比例
@@ -97,17 +97,34 @@ class FVGAnalyzer:
         Returns:
             信心度 (0-100)
         """
-        # 基础信心度
-        confidence = min(fvg_ratio * 10, 80)  # 最多80分
+        # 基础信心度：基于FVG大小
+        # FVG比例越大，信心度越高，但有上限
+        if fvg_ratio >= 0.5:
+            # 非常大的FVG（50%以上）
+            base_confidence = 90
+        elif fvg_ratio >= 0.3:
+            # 大FVG（30%-50%）
+            base_confidence = 80
+        elif fvg_ratio >= 0.2:
+            # 中等FVG（20%-30%）
+            base_confidence = 70
+        elif fvg_ratio >= 0.1:
+            # 小FVG（10%-20%）
+            base_confidence = 60
+        elif fvg_ratio >= 0.05:
+            # 很小FVG（5%-10%）
+            base_confidence = 50
+        else:
+            # 极小FVG（小于5%）
+            base_confidence = 40
 
-        # 根据FVG大小调整
-        if fvg_ratio > 0.3:
-            confidence += 10
-        elif fvg_ratio > 0.2:
-            confidence += 5
+        # 额外加分：FVG类型
+        # 牛市FVG和熊市FVG同等权重
+        if fvg_type in ['bullish', 'bearish']:
+            base_confidence += 5
 
         # 确保不超过100
-        return min(confidence, 100)
+        return min(base_confidence, 100)
 
     def find_fvg_at_price(self, fvg_list: List[Dict], price: float, tolerance: float = 0.001) -> Optional[Dict]:
         """

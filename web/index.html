@@ -32,17 +32,25 @@
         </div>
     </div>
 
-    <!-- 交易所选择 -->
+    <!-- 交易所和周期选择 -->
     <div class="mb-6 bg-gray-800 border border-gray-700 p-6 rounded-lg">
         <div class="flex items-center justify-between">
             <div>
-                <h2 class="text-lg font-bold mb-1">🏦 选择交易所</h2>
-                <p class="text-sm text-gray-400">选择要扫描的交易所</p>
+                <h2 class="text-lg font-bold mb-1">🏦 交易所配置</h2>
+                <p class="text-sm text-gray-400">选择交易所和K线周期</p>
             </div>
             <div class="flex gap-2">
-                <select x-model="selectedExchange" @change="testConnection()" class="bg-gray-700 border border-gray-600 px-4 py-2 text-sm text-white">
-                    <option value="okx">欧易 (OKX)</option>
+                <select x-model="selectedExchange" @change="testConnection()" class="bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
                     <option value="binance">币安 (Binance)</option>
+                </select>
+                <select x-model="selectedTimeframe" class="bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
+                    <option value="5m">5分钟</option>
+                    <option value="15m">15分钟</option>
+                    <option value="30m">30分钟</option>
+                    <option value="1h">1小时</option>
+                    <option value="4h">4小时</option>
+                    <option value="1d">1天</option>
+                    <option value="1w">1周</option>
                 </select>
                 <button @click="testConnection()" :disabled="testingConnection" class="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-600">
                     <span x-show="!testingConnection">🔌 测试连接</span>
@@ -234,13 +242,15 @@
             loading: false,
             loadingMessage: '',
             testingConnection: false,
-            selectedExchange: 'okx',
+            selectedExchange: 'binance',
+            selectedTimeframe: '1h',
             scanLimit: 50,
             signals: [],
             scanStats: {
                 scanned: 0,
                 max_confidence: 0,
-                time: ''
+                time: '',
+                timeframe: ''
             },
             connectionStatus: {
                 message: '',
@@ -258,7 +268,10 @@
                     const response = await fetch('/api/test-connection', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({exchange: this.selectedExchange})
+                        body: JSON.stringify({
+                            exchange: this.selectedExchange,
+                            timeframe: this.selectedTimeframe
+                        })
                     });
                     const data = await response.json();
 
@@ -282,7 +295,10 @@
                     const response = await fetch('/api/scan?limit=' + this.scanLimit, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({exchange: this.selectedExchange})
+                        body: JSON.stringify({
+                            exchange: this.selectedExchange,
+                            timeframe: this.selectedTimeframe
+                        })
                     });
 
                     const data = await response.json();
