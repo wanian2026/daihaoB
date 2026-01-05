@@ -78,6 +78,8 @@ class InteractiveConfig:
     async def test_exchange_connection(exchange_name: str, credentials: Dict[str, str]) -> bool:
         """测试交易所连接"""
         print("\n正在测试交易所连接...")
+        print(f"交易所: {exchange_name.upper()}")
+        print(f"沙盒模式: {'是' if credentials.get('sandbox') else '否'}")
         
         try:
             exchange = ExchangeFactory.create_exchange(
@@ -92,10 +94,21 @@ class InteractiveConfig:
             balance = exchange.get_balance()
             
             print(f"✓ {exchange_name.upper()} 连接成功！")
+            if balance and 'USDT' in balance:
+                usdt_balance = balance['USDT'].get('free', 0)
+                print(f"  USDT余额: {usdt_balance}")
             return True
             
         except Exception as e:
             print(f"✗ {exchange_name.upper()} 连接失败: {e}")
+            print(f"\n[黄色]提示:[/黄色]")
+            if credentials.get('sandbox'):
+                print("- 沙盒环境可能需要单独的API密钥")
+                print("- 币安测试网: https://testnet.binance.vision/")
+                print("- 确保已使用沙盒环境的API密钥")
+            else:
+                print("- 请检查API密钥是否正确")
+                print("- 确保API密钥有足够的权限")
             return False
 
     @staticmethod

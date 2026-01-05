@@ -28,8 +28,9 @@ console = Console()
 
 async def interactive_wizard():
     """交互式向导"""
-    
-    console.print("""
+
+    try:
+        console.print("""
 [bold cyan]
 ╔══════════════════════════════════════════════════════════╗
 ║                                                          ║
@@ -39,84 +40,109 @@ async def interactive_wizard():
 ║                                                          ║
 ╚══════════════════════════════════════════════════════════╝
 [/bold cyan]
-    """)
-    
-    # 步骤1: 选择交易所
-    console.print("\n[bold cyan]步骤 1/5: 选择交易所[/bold cyan]")
-    exchange_name = await InteractiveConfig.select_exchange()
-    
-    # 步骤2: 配置API密钥
-    console.print(f"\n[bold cyan]步骤 2/5: 配置 {exchange_name.upper()} API[/bold cyan]")
-    credentials = await InteractiveConfig.input_api_credentials(exchange_name)
-    
-    # 测试连接
-    connection_ok = await InteractiveConfig.test_exchange_connection(exchange_name, credentials)
-    if not connection_ok:
-        console.print("[red]连接失败，请检查API密钥配置[/red]")
-        return False
-    
-    # 创建交易所实例
-    exchange = ExchangeFactory.create_exchange(
-        exchange_name,
-        credentials['api_key'],
-        credentials['secret'],
-        credentials.get('passphrase'),
-        credentials.get('sandbox', False)
-    )
+        """)
+
+        # 步骤1: 选择交易所
+        console.print("\n[bold cyan]步骤 1/5: 选择交易所[/bold cyan]")
+        exchange_name = await InteractiveConfig.select_exchange()
+
+        # 步骤2: 配置API密钥
+        console.print(f"\n[bold cyan]步骤 2/5: 配置 {exchange_name.upper()} API[/bold cyan]")
+        credentials = await InteractiveConfig.input_api_credentials(exchange_name)
+
+        # 测试连接
+        connection_ok = await InteractiveConfig.test_exchange_connection(exchange_name, credentials)
+        if not connection_ok:
+            console.print("[red]连接失败，请检查API密钥配置[/red]")
+            input("\n按回车键返回主菜单...")
+            return False
+
+        # 创建交易所实例
+        console.print("\n创建交易所实例...")
+        exchange = ExchangeFactory.create_exchange(
+            exchange_name,
+            credentials['api_key'],
+            credentials['secret'],
+            credentials.get('passphrase'),
+            credentials.get('sandbox', False)
+        )
+        console.print(f"[green]✓ 交易所实例创建成功 ({exchange_name.upper()}, 沙盒={credentials.get('sandbox', False)})[/green]")
     
     # 步骤3: 选择交易对
     console.print("\n[bold cyan]步骤 3/5: 选择交易对[/bold cyan]")
-    popular_symbols = [
-        'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT',
-        'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'
-    ]
-    symbol, atr_result = await select_symbol_interactive(exchange, popular_symbols)
-    
-    if not symbol:
-        console.print("[yellow]未选择交易对，程序退出[/yellow]")
+    try:
+        popular_symbols = [
+            'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT',
+            'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'DOT/USDT'
+        ]
+        symbol, atr_result = await select_symbol_interactive(exchange, popular_symbols)
+
+        if not symbol:
+            console.print("[yellow]未选择交易对，程序退出[/yellow]")
+            input("\n按回车键返回主菜单...")
+            return False
+
+        # 获取当前价格
+        ticker = exchange.get_ticker(symbol)
+        current_price = ticker.price
+        console.print(f"\n[green]✓ 当前价格: ${current_price:.2f}[/green]")
+    except Exception as e:
+        console.print(f"[red]获取行情失败: {e}[/red]")
+        import traceback
+        console.print(traceback.format_exc())
+        input("\n按回车键返回主菜单...")
         return False
-    
-    # 获取当前价格
-    ticker = exchange.get_ticker(symbol)
-    current_price = ticker.price
-    console.print(f"\n[green]✓ 当前价格: ${current_price:.2f}[/green]")
-    
+
     # 步骤4: 选择策略和配置参数
     console.print("\n[bold cyan]步骤 4/5: 配置策略[/bold cyan]")
-    
-    strategy_type = await InteractiveConfig.select_strategy()
-    params = await InteractiveConfig.input_strategy_parameters(atr_result)
-    
+
+    try:
+        strategy_type = await InteractiveConfig.select_strategy()
+        params = await InteractiveConfig.input_strategy_parameters(atr_result)
+    except Exception as e:
+        console.print(f"[red]策略配置失败: {e}[/red]")
+        import traceback
+        console.print(traceback.format_exc())
+        input("\n按回车键返回主菜单...")
+        return False
+
     # 步骤5: 计算交易成本
     console.print("\n[bold cyan]步骤 5/5: 交易成本计算[/bold cyan]")
-    
-    # 获取当前余额（用于比例模式）
-    balance_info = exchange.get_balance()
-    current_balance = balance_info.get('USDT', {}).get('free', 0)
-    console.print(f"当前账户余额: {current_balance} USDT")
-    
-    # 计算交易成本
-    cost = MarketInteractive.calculate_trading_cost(
-        current_price,
-        position_size=params.get('position_size'),
-        position_ratio=params.get('position_ratio'),
-        leverage=params['leverage'],
-        current_balance=current_balance if params.get('position_ratio') else None
-    )
-    
-    # 确认交易
-    confirmed = await MarketInteractive.confirm_trading(symbol, current_price, cost)
-    if not confirmed:
-        console.print("[yellow]已取消交易[/yellow]")
+
+    try:
+        # 获取当前余额（用于比例模式）
+        balance_info = exchange.get_balance()
+        current_balance = balance_info.get('USDT', {}).get('free', 0)
+        console.print(f"当前账户余额: {current_balance} USDT")
+
+        # 计算交易成本
+        cost = MarketInteractive.calculate_trading_cost(
+            current_price,
+            position_size=params.get('position_size'),
+            position_ratio=params.get('position_ratio'),
+            leverage=params['leverage'],
+            current_balance=current_balance if params.get('position_ratio') else None
+        )
+
+        # 确认交易
+        confirmed = await MarketInteractive.confirm_trading(symbol, current_price, cost)
+        if not confirmed:
+            console.print("[yellow]已取消交易[/yellow]")
+            return False
+
+        return {
+            'exchange': exchange,
+            'exchange_name': exchange_name,
+            'symbol': symbol,
+            'params': params,
+            'cost': cost
+        }
+    except Exception as e:
+        console.print(f"[red]交易成本计算失败: {e}[/red]")
+        import traceback
+        console.print(traceback.format_exc())
+        input("\n按回车键返回主菜单...")
         return False
-    
-    return {
-        'exchange': exchange,
-        'exchange_name': exchange_name,
-        'symbol': symbol,
-        'params': params,
-        'cost': cost
-    }
 
 
 async def run_strategy_with_monitor(config: dict):
