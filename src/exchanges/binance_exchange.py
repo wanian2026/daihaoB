@@ -22,23 +22,40 @@ class BinanceExchange(BaseExchange):
         if sandbox:
             print("使用币安期货测试网 (testnet.binancefuture.com)")
             print("提示: 币安期货测试网需要单独的API密钥")
-            # 设置币安期货测试网
-            exchange_config['urls'] = {
-                'api': {
-                    'public': 'https://testnet.binancefuture.com/fapi',
-                    'private': 'https://testnet.binancefuture.com/fapi',
+            print("      请访问: https://testnet.binancefuture.com/")
+            print("      注册测试网账号并创建API密钥")
+
+            # 尝试使用CCXT内置的测试网配置
+            try:
+                # 先尝试使用setSandboxMode方法
+                exchange_config['sandboxMode'] = True
+                exchange_config['testnet'] = True
+                exchange_config['options']['adjustForTimeDifference'] = True
+
+                # 创建交易所实例
+                temp_exchange = ccxt.binance(exchange_config)
+                temp_exchange.set_sandbox_mode(True)
+                self.exchange = temp_exchange
+
+            except Exception as e:
+                print(f"警告: 沙盒模式设置失败，尝试手动配置: {e}")
+
+                # 手动配置测试网URL
+                exchange_config['urls'] = {
+                    'api': {
+                        'public': 'https://testnet.binancefuture.com/fapi',
+                        'private': 'https://testnet.binancefuture.com/fapi',
+                    }
                 }
-            }
-            # CCXT币安期货测试网配置
-            exchange_config['testnet'] = True
-            exchange_config['sandboxMode'] = True
-            # 额外的期货测试网选项
-            exchange_config['options']['adjustForTimeDifference'] = True
+                exchange_config['testnet'] = True
+                exchange_config['sandboxMode'] = True
+                exchange_config['options']['adjustForTimeDifference'] = True
+
+                self.exchange = ccxt.binance(exchange_config)
         else:
             # 正式网配置
             exchange_config['options']['adjustForTimeDifference'] = True
-
-        self.exchange = ccxt.binance(exchange_config)
+            self.exchange = ccxt.binance(exchange_config)
 
     def get_exchange_name(self) -> str:
         return "binance"

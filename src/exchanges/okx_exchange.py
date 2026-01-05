@@ -7,7 +7,7 @@ class OKXExchange(BaseExchange):
 
     def __init__(self, api_key: str, secret: str, passphrase: str = None, sandbox: bool = False):
         super().__init__(api_key, secret, passphrase, sandbox)
-        
+
         # 配置OKX交易所
         exchange_config = {
             'apiKey': api_key,
@@ -18,12 +18,18 @@ class OKXExchange(BaseExchange):
                 'defaultType': 'swap'  # 永续合约
             }
         }
-        
-        # 沙盒模式配置
+
+        # 沙盒/模拟交易模式配置
         if sandbox:
             print("使用OKX模拟交易环境 (Demo Trading)")
+            print("提示: 请使用OKX模拟交易API密钥")
+            # OKX模拟交易配置
             exchange_config['sandboxMode'] = True
-        
+            exchange_config['testnet'] = True
+            exchange_config['options']['adjustForTimeDifference'] = True
+        else:
+            exchange_config['options']['adjustForTimeDifference'] = True
+
         self.exchange = ccxt.okx(exchange_config)
 
     def get_exchange_name(self) -> str:

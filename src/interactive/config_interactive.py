@@ -24,8 +24,8 @@ class InteractiveConfig:
         answer = await questionary.select(
             "请选择交易所",
             choices=[
-                questionary.Choice("币安 (Binance)", "binance"),
-                questionary.Choice("欧易 (OKX)", "okx"),
+                questionary.Choice("💎 欧易 (OKX) - 模拟交易配置简单，推荐新手", "okx"),
+                questionary.Choice("🔷 币安 (Binance) - 需要单独的测试网API密钥", "binance"),
             ]
         ).ask_async()
 
@@ -176,14 +176,26 @@ class InteractiveConfig:
 
         except Exception as e:
             print(f"✗ {exchange_name.upper()} 连接失败: {e}")
-            print(f"\n[黄色]提示:[/yellow]")
+            print(f"\n[黄色]提示:[/黄色]")
             if credentials.get('sandbox'):
                 print("- 模拟交易需要单独的测试网API密钥")
                 if exchange_name == 'binance':
-                    print("- 币安期货测试网: https://testnet.binancefuture.com/")
+                    print("\n  🔷 币安期货测试网获取步骤:")
+                    print("  1. 访问: https://testnet.binancefuture.com/")
+                    print("  2. 注册测试网账号（与正式网分开）")
+                    print("  3. 进入 API Management")
+                    print("  4. 创建API密钥，保存 API Key 和 Secret")
+                    print("\n  💡 或者选择OKX模拟交易（更简单）:")
+                    print("  1. 访问: https://www.okx.com/")
+                    print("  2. 登录后进入"模拟交易"")
+                    print("  3. 创建模拟交易API密钥")
                 else:  # OKX
-                    print("- 请在OKX平台获取模拟交易API密钥")
-                print("- 确保使用的是测试网/模拟交易的API密钥，而非正式网API密钥")
+                    print("\n  💎 OKX模拟交易获取步骤:")
+                    print("  1. 访问: https://www.okx.com/")
+                    print("  2. 登录账号")
+                    print("  3. 进入"模拟交易"或"Demo Trading"")
+                    print("  4. 创建模拟交易API密钥（包含API Key、Secret、Passphrase）")
+                print("\n  ❗ 确保使用的是测试网/模拟交易的API密钥，而非正式网API密钥")
             else:
                 print("- 请检查API密钥是否正确")
                 print("- 确保API密钥有足够的权限")
