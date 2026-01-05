@@ -66,6 +66,7 @@ if [ ! -f "${PROJECT_ROOT}/.venv/.installed" ]; then
     echo -e "${YELLOW}首次运行，正在安装依赖...${NC}"
 
     if [ -f "${PROJECT_ROOT}/requirements.txt" ]; then
+        pip install --upgrade pip --quiet
         pip install -r "${PROJECT_ROOT}/requirements.txt"
 
         if [ $? -eq 0 ]; then
@@ -73,6 +74,7 @@ if [ ! -f "${PROJECT_ROOT}/.venv/.installed" ]; then
             echo -e "${GREEN}✓ 依赖安装成功${NC}"
         else
             echo -e "${RED}依赖安装失败${NC}"
+            echo -e "${YELLOW}尝试运行修复脚本: bash fix_dependencies.sh${NC}"
             read -p "按回车键退出..."
             exit 1
         fi
