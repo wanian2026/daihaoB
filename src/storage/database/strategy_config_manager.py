@@ -11,7 +11,8 @@ class StrategyConfigCreate(BaseModel):
     long_threshold: float = Field(..., description="上涨阈值（百分比）")
     short_threshold: float = Field(..., description="下跌阈值（百分比）")
     stop_loss_ratio: float = Field(..., description="止损比例（百分比）")
-    position_size: float = Field(..., description="仓位大小（USDT）")
+    position_size: Optional[float] = Field(None, description="仓位大小（USDT）")
+    position_ratio: Optional[float] = Field(None, description="开仓比例（0-1）")
     leverage: int = Field(1, description="杠杆倍数")
     is_active: bool = Field(True, description="是否启用")
 
@@ -20,6 +21,7 @@ class StrategyConfigUpdate(BaseModel):
     short_threshold: Optional[float] = None
     stop_loss_ratio: Optional[float] = None
     position_size: Optional[float] = None
+    position_ratio: Optional[float] = None
     leverage: Optional[int] = None
     is_active: Optional[bool] = None
 

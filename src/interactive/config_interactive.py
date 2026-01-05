@@ -172,37 +172,69 @@ class InteractiveConfig:
         ).ask_async()
         params['short_threshold'] = float(params['short_threshold']) / 100
 
-        # 止损比例
+        # 止损比例（默认止损）
         default_value = ""
-        instruction = "输入 0.1-99.9 之间的数字"
+        instruction = "输入 0.1-99.9 之间的数字，后续可为每个仓位单独设置止损"
         if suggested_params:
             default_value = str(suggested_params['stop_loss_ratio'] * 100)
-            instruction = f"基于ATR建议: {default_value}%"
+            instruction = f"基于ATR建议: {default_value}%（此为默认值，可在开仓后为每个仓位单独设置）"
 
         params['stop_loss_ratio'] = await questionary.text(
-            "止损比例（百分比，输入 5 表示 5%）:",
+            "默认止损比例（百分比，输入 5 表示 5%）:",
             default=default_value,
             validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0 and float(x) < 100,
             instruction=instruction
         ).ask_async()
         params['stop_loss_ratio'] = float(params['stop_loss_ratio']) / 100
 
-        # 仓位大小
-        params['position_size'] = await questionary.text(
-            "仓位大小（USDT）:",
-            validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0,
-            instruction="输入大于 0 的数字"
+        # 选择仓位模式
+        position_mode = await questionary.select(
+            "请选择仓位模式:",
+            choices=[
+                questionary.Choice("固定仓位大小（每次开固定USDT金额）", "fixed"),
+                questionary.Choice("开仓比例（每次按当前资金比例开仓，更灵活）", "ratio"),
+            ]
         ).ask_async()
-        params['position_size'] = float(params['position_size'])
+        
+        if position_mode == "fixed":
+            # 固定仓位大小
+            params['position_size'] = await questionary.text(
+                "仓位大小（USDT）:",
+                validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0,
+                instruction="输入大于 0 的数字"
+            ).ask_async()
+            params['position_size'] = float(params['position_size'])
+            params['position_ratio'] = None
+        else:
+            # 开仓比例
+            params['position_ratio'] = await questionary.text(
+                "开仓比例（0-1之间，如0.1表示10%）:",
+                default="0.1",
+                validate=lambda x: x.replace('.', '', 1).isdigit() and float(x) > 0 and float(x) <= 1,
+                instruction="输入 0-1 之间的数字，如 0.1 表示 10%"
+            ).ask_async()
+            params['position_ratio'] = float(params['position_ratio'])
+            params['position_size'] = None
 
         # 杠杆倍数
         params['leverage'] = await questionary.text(
-            "杠杆倍数（1表示无杠杆）:",
+            "杠杆倍数（1表示无杠杆，最高125）:",
             default="1",
             validate=lambda x: x.isdigit() and int(x) >= 1 and int(x) <= 125,
             instruction="输入 1-125 之间的整数"
         ).ask_async()
         params['leverage'] = int(params['leverage'])
+
+        # 监控间隔
+        params['monitor_interval'] = await questionary.text(
+            "价格监控间隔（秒）:",
+            default="1",
+            validate=lambda x: x.isdigit() and int(x) >= 1,
+            instruction="输入大于等于 1 的整数"
+        ).ask_async()
+        params['monitor_interval'] = int(params['monitor_interval'])
+
+        return params
 
         # 监控间隔
         params['monitor_interval'] = await questionary.text(
@@ -225,8 +257,15 @@ class InteractiveConfig:
         print(f"交易对: {symbol}")
         print(f"上涨阈值: {params['long_threshold'] * 100}%")
         print(f"下跌阈值: {params['short_threshold'] * 100}%")
-        print(f"止损比例: {params['stop_loss_ratio'] * 100}%")
-        print(f"仓位大小: {params['position_size']} USDT")
+        print(f"默认止损比例: {params['stop_loss_ratio'] * 100}%")
+        
+        if params.get('position_size'):
+            print(f"仓位模式: 固定仓位")
+            print(f"仓位大小: {params['position_size']} USDT")
+        else:
+            print(f"仓位模式: 按比例开仓")
+            print(f"开仓比例: {params['position_ratio'] * 100}% (每次按当前资金动态调整)")
+        
         print(f"杠杆倍数: {params['leverage']}x")
         print(f"监控间隔: {params['monitor_interval']}秒")
         print("=" * 60)
@@ -235,7 +274,8 @@ class InteractiveConfig:
         print("1. 初始化时同时开一个多单和一个空单")
         print("2. 上涨达到阈值：平多单 + 开新多单")
         print("3. 下跌达到阈值：平空单 + 开新空单")
-        print("4. 触发止损：自动平仓")
+        print("4. 触发止损：自动平仓（默认使用止损比例，可单独设置每个仓位的止损）")
+        print("5. 按比例模式：每次开仓根据当前账户余额动态计算仓位大小")
         print("=" * 60)
         
         confirm = input("\n确认启动策略？(y/n): ").strip().lower()

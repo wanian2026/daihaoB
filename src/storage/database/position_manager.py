@@ -11,9 +11,13 @@ class PositionCreate(BaseModel):
     side: str = Field(..., description="方向：long/short")
     entry_price: float = Field(..., description="开仓价格")
     quantity: float = Field(..., description="持仓数量")
+    leverage: Optional[int] = Field(1, description="杠杆倍数")
+    stop_loss_price: Optional[float] = Field(None, description="独立止损价格")
+    initial_balance: Optional[float] = Field(None, description="开仓时的账户余额")
 
 class PositionUpdate(BaseModel):
     current_price: Optional[float] = None
+    stop_loss_price: Optional[float] = None
     status: Optional[str] = None
     pnl: Optional[float] = None
     is_stopped: Optional[bool] = None
@@ -64,6 +68,10 @@ class PositionManager:
         except Exception:
             db.rollback()
             raise
+
+    def set_stop_loss(self, db: Session, position_id: int, stop_loss_price: float) -> Optional[Position]:
+        """为仓位设置独立止损价格"""
+        return self.update_position(db, position_id, PositionUpdate(stop_loss_price=stop_loss_price))
 
     def close_position(self, db: Session, position_id: int, pnl: float = None, is_stopped: bool = False) -> Optional[Position]:
         """平仓"""

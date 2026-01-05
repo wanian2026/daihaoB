@@ -82,10 +82,19 @@ async def interactive_wizard():
     
     # 步骤5: 计算交易成本
     console.print("\n[bold cyan]步骤 5/5: 交易成本计算[/bold cyan]")
+    
+    # 获取当前余额（用于比例模式）
+    balance_info = exchange.get_balance()
+    current_balance = balance_info.get('USDT', {}).get('free', 0)
+    console.print(f"当前账户余额: {current_balance} USDT")
+    
+    # 计算交易成本
     cost = MarketInteractive.calculate_trading_cost(
         current_price,
-        params['position_size'],
-        params['leverage']
+        position_size=params.get('position_size'),
+        position_ratio=params.get('position_ratio'),
+        leverage=params['leverage'],
+        current_balance=current_balance if params.get('position_ratio') else None
     )
     
     # 确认交易
@@ -120,7 +129,8 @@ async def run_strategy_with_monitor(config: dict):
         long_threshold=params['long_threshold'],
         short_threshold=params['short_threshold'],
         stop_loss_ratio=params['stop_loss_ratio'],
-        position_size=params['position_size'],
+        position_size=params.get('position_size'),  # 可能为None
+        position_ratio=params.get('position_ratio'),  # 可能为None
         leverage=params['leverage']
     )
     
@@ -145,7 +155,8 @@ async def run_strategy_with_monitor(config: dict):
                 long_threshold=params['long_threshold'],
                 short_threshold=params['short_threshold'],
                 stop_loss_ratio=params['stop_loss_ratio'],
-                position_size=params['position_size'],
+                position_size=params.get('position_size'),  # 可能为None
+                position_ratio=params.get('position_ratio'),  # 可能为None
                 leverage=params['leverage']
             ))
         

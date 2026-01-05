@@ -90,37 +90,57 @@ class MarketInteractive:
                 console.print("[red]无效的输入[/red]")
 
     @staticmethod
-    def calculate_trading_cost(price: float, position_size: float, leverage: int, 
-                                taker_fee: float = 0.0004) -> Dict[str, float]:
+    def calculate_trading_cost(price: float, position_size: Optional[float] = None, 
+                                position_ratio: Optional[float] = None, leverage: int = 1,
+                                current_balance: float = None, taker_fee: float = 0.0004) -> Dict[str, float]:
         """
         计算交易成本
         
         Args:
             price: 当前价格
-            position_size: 仓位大小（USDT）
+            position_size: 固定仓位大小（USDT），与position_ratio二选一
+            position_ratio: 开仓比例（0-1），与position_size二选一
             leverage: 杠杆倍数
+            current_balance: 当前账户余额（比例模式需要）
             taker_fee: 手续费率（默认0.04%）
         
         Returns:
             交易成本字典
         """
+        # 确定实际使用的仓位大小
+        if position_size is not None:
+            actual_position_size = position_size
+            mode = "fixed"
+        elif position_ratio is not None:
+            if current_balance is None:
+                raise ValueError("比例模式需要提供 current_balance 参数")
+            actual_position_size = current_balance * position_ratio
+            mode = "ratio"
+        else:
+            raise ValueError("必须提供 position_size 或 position_ratio 之一")
+        
         # 计算持仓数量
-        quantity = position_size / price
+        quantity = actual_position_size / price
+        
+        # 应用杠杆
+        leveraged_position = actual_position_size * leverage
         
         # 计算开仓手续费（双边，多单和空单）
-        open_fee = position_size * taker_fee * 2
+        open_fee = leveraged_position * taker_fee * 2
         
         # 计算保证金（考虑杠杆）
-        margin = position_size / leverage
+        margin = actual_position_size / leverage
         
         # 计算平仓手续费（预估）
-        close_fee = position_size * taker_fee * 2
+        close_fee = leveraged_position * taker_fee * 2
         
         # 总成本
         total_cost = open_fee + close_fee
         
         return {
+            'mode': mode,
             'quantity': quantity,
+            'actual_position_size': actual_position_size,
             'open_fee': open_fee,
             'margin': margin,
             'close_fee': close_fee,
@@ -163,11 +183,33 @@ ATR占比: [cyan]{atr_result.atr_percentage:.2f}%[/cyan]
     @staticmethod
     def display_trading_cost(cost: Dict[str, float]):
         """显示交易成本"""
+        mode = cost.get('mode', 'fixed')
+        mode_text = "固定仓位" if mode == "fixed" else "按比例动态开仓"
+        
         table = Table(title="交易成本计算", show_header=True, header_style="bold magenta")
         table.add_column("项目", style="cyan")
         table.add_column("金额/数量", justify="right")
         table.add_column("说明", style="dim")
 
+        table.add_row(
+            "开仓模式",
+            f"[yellow]{mode_text}[/yellow]",
+            "仓位计算方式"
+        )
+        
+        if mode == "fixed":
+            table.add_row(
+                "仓位大小",
+                f"${cost['actual_position_size']:.2f}",
+                "固定USDT金额"
+            )
+        else:
+            table.add_row(
+                "实际仓位大小",
+                f"${cost['actual_position_size']:.2f}",
+                "基于当前余额动态计算"
+            )
+        
         table.add_row(
             "持仓数量",
             f"{cost['quantity']:.6f}",
@@ -181,7 +223,7 @@ ATR占比: [cyan]{atr_result.atr_percentage:.2f}%[/cyan]
         table.add_row(
             "所需保证金",
             f"${cost['margin']:.2f}",
-            f"杠杆 1/{cost['margin'] / cost['open_fee']:.0f}x"
+            "开仓所需保证金"
         )
         table.add_row(
             "预估平仓手续费",
@@ -194,7 +236,7 @@ ATR占比: [cyan]{atr_result.atr_percentage:.2f}%[/cyan]
             "开仓+平仓"
         )
         
-        # 成本占仓位比例
+        # 成本占保证金比例
         cost_ratio = (cost['total_cost'] / cost['margin']) * 100
         table.add_row(
             "成本占比",

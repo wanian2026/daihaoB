@@ -18,15 +18,17 @@ class TradingEngine:
 
     def __init__(self, exchange: BaseExchange, symbol: str, 
                  long_threshold: float, short_threshold: float, 
-                 stop_loss_ratio: float, position_size: float, leverage: int = 1):
+                 stop_loss_ratio: float, position_size: Optional[float] = None, 
+                 position_ratio: Optional[float] = None, leverage: int = 1):
         """
         初始化交易引擎
         :param exchange: 交易所实例
         :param symbol: 交易对
         :param long_threshold: 上涨阈值（百分比）
         :param short_threshold: 下跌阈值（百分比）
-        :param stop_loss_ratio: 止损比例（百分比）
-        :param position_size: 仓位大小（USDT）
+        :param stop_loss_ratio: 默认止损比例（百分比）
+        :param position_size: 固定仓位大小（USDT），与position_ratio二选一
+        :param position_ratio: 开仓比例（0-1），每次开仓根据当前资金动态计算，与position_size二选一
         :param leverage: 杠杆倍数
         """
         self.exchange = exchange
@@ -35,6 +37,7 @@ class TradingEngine:
         self.short_threshold = short_threshold
         self.stop_loss_ratio = stop_loss_ratio
         self.position_size = position_size
+        self.position_ratio = position_ratio
         self.leverage = leverage
         self.running = False
 
@@ -52,8 +55,13 @@ class TradingEngine:
         current_price = ticker.price
         logger.info(f"当前价格: {current_price}")
 
+        # 获取当前余额（用于动态计算）
+        balance_info = self.exchange.get_balance()
+        current_balance = balance_info.get('USDT', {}).get('free', 0)
+        logger.info(f"当前账户余额: {current_balance} USDT")
+
         # 计算开仓数量
-        quantity = self._calculate_quantity(current_price)
+        quantity = self._calculate_quantity(current_price, current_balance)
         logger.info(f"开仓数量: {quantity}")
 
         # 开多单
@@ -72,6 +80,11 @@ class TradingEngine:
                 quantity=long_order.quantity
             ))
 
+            # 更新额外字段（杠杆、初始余额）
+            db_position.leverage = self.leverage
+            db_position.initial_balance = current_balance
+            db.commit()
+
             # 记录交易日志
             self.trade_log_mgr.create_trade_log(db, TradeLogCreate(
                 exchange=self.exchange.get_exchange_name(),
@@ -81,7 +94,7 @@ class TradingEngine:
                 price=long_order.price,
                 quantity=long_order.quantity,
                 order_id=long_order.order_id,
-                meta={'position_id': db_position.id}
+                meta={'position_id': db_position.id, 'leverage': self.leverage}
             ))
 
         except Exception as e:
@@ -104,6 +117,11 @@ class TradingEngine:
                 quantity=short_order.quantity
             ))
 
+            # 更新额外字段（杠杆、初始余额）
+            db_position.leverage = self.leverage
+            db_position.initial_balance = current_balance
+            db.commit()
+
             # 记录交易日志
             self.trade_log_mgr.create_trade_log(db, TradeLogCreate(
                 exchange=self.exchange.get_exchange_name(),
@@ -113,7 +131,7 @@ class TradingEngine:
                 price=short_order.price,
                 quantity=short_order.quantity,
                 order_id=short_order.order_id,
-                meta={'position_id': db_position.id}
+                meta={'position_id': db_position.id, 'leverage': self.leverage}
             ))
 
         except Exception as e:
@@ -122,10 +140,30 @@ class TradingEngine:
 
         logger.info("策略初始化完成")
 
-    def _calculate_quantity(self, price: float) -> float:
-        """计算开仓数量"""
-        # 数量 = 仓位大小 / 价格
-        return self.position_size / price
+    def _calculate_quantity(self, price: float, current_balance: float = None) -> float:
+        """
+        计算开仓数量
+        :param price: 当前价格
+        :param current_balance: 当前账户余额（如果使用比例模式则必填）
+        :return: 开仓数量
+        """
+        if self.position_size:
+            # 固定仓位模式
+            quantity = self.position_size / price
+        else:
+            # 比例模式：动态计算
+            if current_balance is None:
+                balance_info = self.exchange.get_balance()
+                current_balance = balance_info.get('USDT', {}).get('free', 0)
+            
+            quantity = (current_balance * self.position_ratio) / price
+            logger.info(f"动态开仓: 当前余额={current_balance} USDT, 比例={self.position_ratio}, 数量={quantity}")
+        
+        # 应用杠杆
+        quantity = quantity * self.leverage
+        logger.info(f"应用杠杆 {self.leverage}x 后数量: {quantity}")
+        
+        return quantity
 
     def run(self, db: Session, interval: int = 1):
         """
@@ -183,12 +221,20 @@ class TradingEngine:
 
     def _check_long_position(self, db: Session, position, current_price: float, entry_price: float):
         """检查多单"""
-        # 止损检查
-        stop_loss_price = entry_price * (1 - self.stop_loss_ratio)
-        if current_price <= stop_loss_price:
-            logger.warning(f"多单触发止损: entry={entry_price}, current={current_price}, stop_loss={stop_loss_price}")
-            self._close_position(db, position, current_price, 'stop_loss')
-            return
+        # 止损检查：优先使用独立止损价格
+        if position.stop_loss_price:
+            stop_loss_price = position.stop_loss_price
+            if current_price <= stop_loss_price:
+                logger.warning(f"多单触发独立止损: entry={entry_price}, current={current_price}, stop_loss={stop_loss_price}")
+                self._close_position(db, position, current_price, 'stop_loss')
+                return
+        else:
+            # 使用默认止损比例
+            stop_loss_price = entry_price * (1 - self.stop_loss_ratio)
+            if current_price <= stop_loss_price:
+                logger.warning(f"多单触发默认止损: entry={entry_price}, current={current_price}, stop_loss={stop_loss_price}")
+                self._close_position(db, position, current_price, 'stop_loss')
+                return
 
         # 上涨触发检查
         trigger_price = entry_price * (1 + self.long_threshold)
@@ -201,12 +247,20 @@ class TradingEngine:
 
     def _check_short_position(self, db: Session, position, current_price: float, entry_price: float):
         """检查空单"""
-        # 止损检查
-        stop_loss_price = entry_price * (1 + self.stop_loss_ratio)
-        if current_price >= stop_loss_price:
-            logger.warning(f"空单触发止损: entry={entry_price}, current={current_price}, stop_loss={stop_loss_price}")
-            self._close_position(db, position, current_price, 'stop_loss')
-            return
+        # 止损检查：优先使用独立止损价格
+        if position.stop_loss_price:
+            stop_loss_price = position.stop_loss_price
+            if current_price >= stop_loss_price:
+                logger.warning(f"空单触发独立止损: entry={entry_price}, current={current_price}, stop_loss={stop_loss_price}")
+                self._close_position(db, position, current_price, 'stop_loss')
+                return
+        else:
+            # 使用默认止损比例
+            stop_loss_price = entry_price * (1 + self.stop_loss_ratio)
+            if current_price >= stop_loss_price:
+                logger.warning(f"空单触发默认止损: entry={entry_price}, current={current_price}, stop_loss={stop_loss_price}")
+                self._close_position(db, position, current_price, 'stop_loss')
+                return
 
         # 下跌触发检查
         trigger_price = entry_price * (1 - self.short_threshold)
@@ -265,7 +319,12 @@ class TradingEngine:
     def _open_new_long_position(self, db: Session, current_price: float):
         """开新多单"""
         logger.info(f"开新多单: price={current_price}")
-        quantity = self._calculate_quantity(current_price)
+        
+        # 获取当前余额用于动态计算
+        balance_info = self.exchange.get_balance()
+        current_balance = balance_info.get('USDT', {}).get('free', 0)
+        
+        quantity = self._calculate_quantity(current_price, current_balance)
 
         try:
             order = self.exchange.create_order(self.symbol, 'buy', 'market', quantity)
@@ -280,6 +339,11 @@ class TradingEngine:
                 quantity=order.quantity
             ))
 
+            # 更新额外字段（杠杆、初始余额）
+            db_position.leverage = self.leverage
+            db_position.initial_balance = current_balance
+            db.commit()
+
             # 记录交易日志
             self.trade_log_mgr.create_trade_log(db, TradeLogCreate(
                 exchange=self.exchange.get_exchange_name(),
@@ -289,7 +353,7 @@ class TradingEngine:
                 price=order.price,
                 quantity=order.quantity,
                 order_id=order.order_id,
-                meta={'position_id': db_position.id}
+                meta={'position_id': db_position.id, 'leverage': self.leverage, 'initial_balance': current_balance}
             ))
 
         except Exception as e:
@@ -298,7 +362,12 @@ class TradingEngine:
     def _open_new_short_position(self, db: Session, current_price: float):
         """开新空单"""
         logger.info(f"开新空单: price={current_price}")
-        quantity = self._calculate_quantity(current_price)
+        
+        # 获取当前余额用于动态计算
+        balance_info = self.exchange.get_balance()
+        current_balance = balance_info.get('USDT', {}).get('free', 0)
+        
+        quantity = self._calculate_quantity(current_price, current_balance)
 
         try:
             order = self.exchange.create_order(self.symbol, 'sell', 'market', quantity)
@@ -313,6 +382,11 @@ class TradingEngine:
                 quantity=order.quantity
             ))
 
+            # 更新额外字段（杠杆、初始余额）
+            db_position.leverage = self.leverage
+            db_position.initial_balance = current_balance
+            db.commit()
+
             # 记录交易日志
             self.trade_log_mgr.create_trade_log(db, TradeLogCreate(
                 exchange=self.exchange.get_exchange_name(),
@@ -322,7 +396,7 @@ class TradingEngine:
                 price=order.price,
                 quantity=order.quantity,
                 order_id=order.order_id,
-                meta={'position_id': db_position.id}
+                meta={'position_id': db_position.id, 'leverage': self.leverage, 'initial_balance': current_balance}
             ))
 
         except Exception as e:
