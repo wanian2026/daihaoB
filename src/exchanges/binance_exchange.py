@@ -7,7 +7,7 @@ class BinanceExchange(BaseExchange):
 
     def __init__(self, api_key: str, secret: str, passphrase: str = None, sandbox: bool = False):
         super().__init__(api_key, secret, passphrase, sandbox)
-        
+
         # 配置币安交易所
         exchange_config = {
             'apiKey': api_key,
@@ -17,18 +17,19 @@ class BinanceExchange(BaseExchange):
                 'defaultType': 'future'  # 永续合约
             }
         }
-        
-        # 沙盒模式配置
+
+        # 沙盒模式配置 - 使用币安期货测试网
         if sandbox:
-            print("使用币安期货测试网 (testnet.binance.vision)")
+            print("使用币安期货测试网 (testnet.binancefuture.com)")
+            print("提示: 币安期货测试网需要单独的API密钥")
             exchange_config['urls'] = {
                 'api': {
-                    'public': 'https://testnet.binance.vision/api',
-                    'private': 'https://testnet.binance.vision/api',
+                    'public': 'https://testnet.binancefuture.com/fapi',
+                    'private': 'https://testnet.binancefuture.com/fapi',
                 }
             }
             exchange_config['sandboxMode'] = True
-        
+
         self.exchange = ccxt.binance(exchange_config)
 
     def get_exchange_name(self) -> str:
