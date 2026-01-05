@@ -97,7 +97,7 @@ async def scan_contracts(config: ExchangeConfig, limit: int = Query(50, descript
         scanner = ContractScanner(config.exchange)
 
         # 执行扫描
-        signals = scanner.scan_contracts_sync(limit=limit)
+        signals = scanner.scan_contracts(limit=limit)
 
         # 计算统计信息
         max_confidence = 0

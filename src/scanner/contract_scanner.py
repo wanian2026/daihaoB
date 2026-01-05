@@ -23,9 +23,9 @@ class ContractScanner:
         self.exchange = ExchangeFactory.create_exchange(exchange_name)
         self.signal_generator = SignalGenerator()
 
-    async def scan_contracts(self, limit: int = 50) -> List[Dict]:
+    def scan_contracts(self, limit: int = 50) -> List[Dict]:
         """
-        扫描所有合约，寻找交易机会
+        扫描所有合约，寻找交易机会（同步方法）
 
         Args:
             limit: 扫描数量限制
@@ -89,15 +89,3 @@ class ContractScanner:
         print(f"扫描完成！共扫描 {scanned_count} 个合约，找到 {len(signals)} 个信号")
 
         return signals
-
-    def scan_contracts_sync(self, limit: int = 50) -> List[Dict]:
-        """
-        同步扫描所有合约
-
-        Args:
-            limit: 扫描数量限制
-
-        Returns:
-            信号列表
-        """
-        return asyncio.run(self.scan_contracts(limit))
