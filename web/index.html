@@ -160,6 +160,7 @@
                         <div>
                             <p class="text-xs text-gray-400 uppercase">止盈价</p>
                             <p class="text-lg font-bold text-green-400" x-text="signal.take_profit ? signal.take_profit.toFixed(6) : '-'"></p>
+                            <p class="text-xs text-blue-300 mt-1" x-show="signal.take_profit_reason" x-text="signal.take_profit_reason"></p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-400 uppercase">止损价</p>

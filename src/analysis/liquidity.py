@@ -2,7 +2,7 @@
 流动性分析模块
 分析订单簿深度、买卖不平衡等流动性特征
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 import numpy as np
 
 
@@ -192,3 +192,47 @@ class LiquidityAnalyzer:
         zones.sort(key=lambda x: abs(x['distance']))
 
         return zones[:5]  # 返回最近的5个流动性区域
+
+    def find_target_liquidity_zone(self, orderbook: Dict, current_price: float,
+                                    direction: str) -> Optional[Dict]:
+        """
+        查找目标方向的流动性密集区（用于止盈）
+
+        做多时：查找上方最近的卖单流动性密集区
+        做空时：查找下方最近的买单流动性密集区
+
+        Args:
+            orderbook: 订单簿
+            current_price: 当前价格
+            direction: 方向 'long' 或 'short'
+
+        Returns:
+            流动性密集区信息，如果未找到返回 None
+        """
+        liquidity_zones = self.find_liquidity_zones(orderbook, current_price)
+
+        if not liquidity_zones:
+            return None
+
+        # 根据方向筛选流动性区域
+        if direction == 'long':
+            # 做多：查找上方的卖单流动性密集区
+            sell_zones = [z for z in liquidity_zones if z['type'] == 'sell' and z['price'] > current_price]
+
+            if not sell_zones:
+                return None
+
+            # 返回最近的卖单流动性密集区
+            return min(sell_zones, key=lambda x: x['distance'])
+
+        elif direction == 'short':
+            # 做空：查找下方的买单流动性密集区
+            buy_zones = [z for z in liquidity_zones if z['type'] == 'buy' and z['price'] < current_price]
+
+            if not buy_zones:
+                return None
+
+            # 返回最近的买单流动性密集区
+            return min(buy_zones, key=lambda x: abs(x['distance']))
+
+        return None

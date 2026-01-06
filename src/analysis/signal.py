@@ -65,6 +65,7 @@ class SignalGenerator:
             'direction': None,  # 'long' or 'short'
             'entry_price': current_price,
             'take_profit': None,
+            'take_profit_reason': '',  # 止盈价格依据
             'stop_loss': None,
             'confidence': 0,
             'reason': '',
@@ -103,9 +104,20 @@ class SignalGenerator:
                 # 止损价：FVG下沿下方2%
                 signal['stop_loss'] = fvg_low * 0.98
 
-                # 止盈价：基于2:1盈亏比
-                risk = signal['entry_price'] - signal['stop_loss']
-                signal['take_profit'] = signal['entry_price'] + risk * 2.0
+                # 止盈价：查找上方的卖单流动性密集区
+                target_liquidity = self.liquidity_analyzer.find_target_liquidity_zone(
+                    orderbook, current_price, 'long'
+                )
+
+                if target_liquidity:
+                    # 使用流动性密集区价格作为止盈价
+                    signal['take_profit'] = target_liquidity['price']
+                    signal['take_profit_reason'] = f"流动性密集区（距离{target_liquidity['distance']:.2f}%）"
+                else:
+                    # 备用方案：基于2:1盈亏比
+                    risk = signal['entry_price'] - signal['stop_loss']
+                    signal['take_profit'] = signal['entry_price'] + risk * 2.0
+                    signal['take_profit_reason'] = "固定盈亏比(2:1)"
 
                 # 如果价格已经在FVG上方，可以考虑更激进的入场价（FVG下沿附近）
                 if current_price > fvg_high:
@@ -132,9 +144,20 @@ class SignalGenerator:
                 # 止损价：FVG上沿上方2%
                 signal['stop_loss'] = fvg_high * 1.02
 
-                # 止盈价：基于2:1盈亏比
-                risk = signal['stop_loss'] - signal['entry_price']
-                signal['take_profit'] = signal['entry_price'] - risk * 2.0
+                # 止盈价：查找下方的买单流动性密集区
+                target_liquidity = self.liquidity_analyzer.find_target_liquidity_zone(
+                    orderbook, current_price, 'short'
+                )
+
+                if target_liquidity:
+                    # 使用流动性密集区价格作为止盈价
+                    signal['take_profit'] = target_liquidity['price']
+                    signal['take_profit_reason'] = f"流动性密集区（距离{target_liquidity['distance']:.2f}%）"
+                else:
+                    # 备用方案：基于2:1盈亏比
+                    risk = signal['stop_loss'] - signal['entry_price']
+                    signal['take_profit'] = signal['entry_price'] - risk * 2.0
+                    signal['take_profit_reason'] = "固定盈亏比(2:1)"
 
                 # 如果价格已经在FVG下方，可以考虑更激进的入场价（FVG上沿附近）
                 if current_price < fvg_low:
