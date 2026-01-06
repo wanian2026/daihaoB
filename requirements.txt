@@ -77,7 +77,7 @@ ormsgpack==1.12.1
 packaging==25.0
 pandas==2.2.2
 paragraphs==1.0.1
-
+pillow==10.3.0
 platformdirs==4.5.1
 pluggy==1.6.0
 prompt_toolkit==3.0.52
@@ -92,7 +92,7 @@ pycparser==2.23
 pydantic==2.12.3
 pydantic_core==2.41.4
 Pygments==2.19.2
-PyGObject==3.48.2
+
 PyJWT==2.10.1
 pylint==3.1.0
 pypdf==6.4.1
