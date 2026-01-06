@@ -4,6 +4,7 @@
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
 import json
@@ -29,6 +30,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 获取项目根目录
+# 优先使用环境变量 COZE_WORKSPACE_PATH，否则使用当前文件的父目录的父目录的父目录
+WORKSPACE_PATH = os.getenv('COZE_WORKSPACE_PATH')
+if WORKSPACE_PATH:
+    BASE_DIR = WORKSPACE_PATH
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+web_dir = os.path.join(BASE_DIR, 'web')
+
+# 挂载web目录为静态文件（如果目录存在）
+if os.path.exists(web_dir):
+    try:
+        app.mount("/static", StaticFiles(directory=web_dir), name="static")
+    except Exception as e:
+        print(f"警告: 挂载静态文件失败: {e}")
+else:
+    print(f"警告: web目录不存在: {web_dir}")
 
 # ========== 数据模型 ==========
 
@@ -62,8 +82,28 @@ async def shutdown_event():
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     """返回主页"""
-    with open("web/index.html", "r", encoding="utf-8") as f:
+    html_path = os.path.join(web_dir, "index.html")
+
+    if not os.path.exists(html_path):
+        return """
+        <html>
+        <head><title>404 Not Found</title></head>
+        <body>
+            <h1>404 Not Found</h1>
+            <p>index.html 不存在: {html_path}</p>
+            <p>项目目录: {BASE_DIR}</p>
+            <p>Web目录: {web_dir}</p>
+        </body>
+        </html>
+        """.format(html_path=html_path, BASE_DIR=BASE_DIR, web_dir=web_dir)
+
+    with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
+
+@app.get("/index.html", response_class=HTMLResponse)
+async def read_index():
+    """返回主页（兼容/index.html路径）"""
+    return await read_root()
 
 # ========== 交易所接口 ==========
 
