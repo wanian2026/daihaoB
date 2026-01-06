@@ -25,7 +25,7 @@ class ContractScanner:
         self.exchange = ExchangeFactory.create_exchange(exchange_name)
         self.signal_generator = SignalGenerator()
 
-    def scan_contracts(self, limit: int = 50) -> List[Dict]:
+    def scan_contracts(self, limit: int = 500) -> List[Dict]:
         """
         扫描所有合约，寻找交易机会（同步方法）
 
@@ -119,8 +119,19 @@ class ContractScanner:
                 print(f"扫描 {symbol} 失败: {e}")
                 continue
 
-        # 按信心度排序
-        signals.sort(key=lambda x: x['confidence'], reverse=True)
+        # 综合排序：信心度（70%）+ 盈亏比（30%）
+        def sort_score(signal):
+            """计算综合得分：信心度(70%) + 盈亏比(30%)"""
+            confidence = signal['confidence'] / 100  # 归一化到 0-1
+            risk_reward = signal.get('risk_reward_ratio', 0)
+            
+            # 盈亏比归一化到 0-1（假设最高盈亏比为 3:1）
+            normalized_rr = min(risk_reward / 3, 1)
+            
+            # 综合得分：信心度70% + 盈亏比30%
+            return confidence * 0.7 + normalized_rr * 0.3
+        
+        signals.sort(key=sort_score, reverse=True)
 
         print(f"扫描完成！共扫描 {scanned_count} 个合约，找到 {len(signals)} 个信号")
 
