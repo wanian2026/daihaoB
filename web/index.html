@@ -24,32 +24,7 @@
             <h1 class="text-2xl font-bold">🎯 合约信号扫描系统</h1>
             <p class="text-sm text-gray-400 mt-1">基于 FVG 和流动性分析的智能交易信号（公开API版）</p>
         </div>
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2">
-                <div class="w-3 h-3 rounded-full" :class="monitoringConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'"></div>
-                <span class="text-sm" x-text="monitoringConnected ? '实时监测中' : '监测断开'"></span>
-            </div>
-        </div>
     </div>
-
-    <!-- 模式切换 -->
-    <div class="mb-6">
-        <div class="flex gap-2">
-            <button @click="currentMode = 'scan'"
-                    :class="currentMode === 'scan' ? 'bg-blue-600' : 'bg-gray-700'"
-                    class="px-6 py-2 text-white font-bold rounded">
-                📊 批量扫描
-            </button>
-            <button @click="currentMode = 'monitor'"
-                    :class="currentMode === 'monitor' ? 'bg-blue-600' : 'bg-gray-700'"
-                    class="px-6 py-2 text-white font-bold rounded">
-                👁️ 实时监测
-            </button>
-        </div>
-    </div>
-
-    <!-- 批量扫描模式 -->
-    <div x-show="currentMode === 'scan'">
 
     <!-- 交易所和周期选择 -->
     <div class="mb-6 bg-gray-800 border border-gray-700 p-6 rounded-lg">
@@ -89,9 +64,11 @@
             </div>
             <div class="flex gap-2">
                 <select x-model="scanLimit" class="bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-white">
-                    <option :value="20">扫描 20 个合约</option>
-                    <option :value="50">扫描 50 个合约</option>
                     <option :value="100">扫描 100 个合约</option>
+                    <option :value="200">扫描 200 个合约</option>
+                    <option :value="300">扫描 300 个合约</option>
+                    <option :value="400">扫描 400 个合约</option>
+                    <option :value="500">扫描 500 个合约</option>
                 </select>
                 <button @click="startScan()" :disabled="scanning" class="px-6 py-2 bg-green-600 text-white text-sm font-bold hover:bg-green-700 disabled:bg-gray-600">
                     <span x-show="!scanning">🚀 开始扫描</span>
@@ -125,121 +102,6 @@
         <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
             <p class="text-xs text-gray-400 uppercase">扫描时间</p>
             <p class="text-sm font-bold mt-1" x-text="scanStats.time || '-'"></p>
-        </div>
-    </div>
-    </div>
-
-    <!-- 实时监测模式 -->
-    <div x-show="currentMode === 'monitor'">
-        <!-- 添加监测合约 -->
-        <div class="mb-6 bg-gray-800 border border-gray-700 p-6 rounded-lg">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h2 class="text-lg font-bold mb-1">➕ 添加监测合约</h2>
-                    <p class="text-sm text-gray-400">输入合约符号，持续监测多周期信号</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full" :class="monitoringConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></div>
-                    <span class="text-sm" :class="monitoringConnected ? 'text-green-400' : 'text-red-400'" x-text="monitoringConnected ? '已连接' : '未连接'"></span>
-                </div>
-            </div>
-
-            <div class="flex gap-4">
-                <input type="text" x-model="monitoringSymbol" placeholder="合约符号 (如 BTC/USDT)"
-                       class="flex-1 bg-gray-700 border border-gray-600 px-4 py-2 text-white rounded">
-                <select x-model="monitoringExchange" class="bg-gray-700 border border-gray-600 px-4 py-2 text-white rounded">
-                    <option value="binance">币安</option>
-                </select>
-                <button @click="addMonitoring()" :disabled="!monitoringSymbol || addingMonitoring"
-                        class="px-6 py-2 bg-green-600 text-white font-bold hover:bg-green-700 disabled:bg-gray-600 rounded">
-                    <span x-show="!addingMonitoring">➕ 添加监测</span>
-                    <span x-show="addingMonitoring">添加中...</span>
-                </button>
-            </div>
-
-            <!-- 周期选择 -->
-            <div class="mt-4">
-                <p class="text-sm text-gray-400 mb-2">监测周期（可多选）：</p>
-                <div class="flex flex-wrap gap-2">
-                    <template x-for="tf in ['5m', '15m', '30m', '1h', '4h', '1d', '1w']">
-                        <button @click="toggleTimeframe(tf)"
-                                :class="selectedTimeframes.includes(tf) ? 'bg-blue-600' : 'bg-gray-700'"
-                                class="px-3 py-1 text-sm text-white rounded"
-                                x-text="tf"></button>
-                    </template>
-                </div>
-            </div>
-        </div>
-
-        <!-- 监测列表 -->
-        <div class="mb-6 bg-gray-800 border border-gray-700 p-6 rounded-lg">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold">📋 监测列表 (<span x-text="monitoringList.length"></span>)</h2>
-                <button @click="refreshMonitoring()" class="text-sm text-blue-400 hover:text-blue-300">
-                    🔄 刷新
-                </button>
-            </div>
-
-            <div x-show="monitoringList.length === 0" class="text-center py-8 text-gray-400">
-                暂无监测合约
-            </div>
-
-            <div x-show="monitoringList.length > 0" class="space-y-3">
-                <template x-for="(item, index) in monitoringList" :key="index">
-                    <div class="bg-gray-900 border border-gray-700 p-4 rounded-lg">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="text-lg font-bold" x-text="item.symbol"></h3>
-                                <p class="text-sm text-gray-400 mt-1">
-                                    周期: <span x-text="item.timeframes.join(', ')"></span>
-                                </p>
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="text-right">
-                                    <p class="text-xs text-gray-400">信号数量</p>
-                                    <p class="text-xl font-bold text-green-400" x-text="item.signals_count || 0"></p>
-                                </div>
-                                <button @click="removeMonitoring(item.symbol)"
-                                        class="px-4 py-2 bg-red-600 text-white text-sm hover:bg-red-700 rounded">
-                                    ❌ 移除
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- 实时信号显示 -->
-                        <div x-show="monitoringSignals[item.symbol]" class="mt-4 pt-4 border-t border-gray-700">
-                            <h4 class="text-sm font-bold mb-2">📊 实时信号</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <template x-for="(signal, tf) in monitoringSignals[item.symbol]" :key="tf">
-                                    <div x-show="signal.has_signal"
-                                         class="bg-gray-800 border p-3 rounded"
-                                         :class="signal.direction === 'long' ? 'border-green-600' : 'border-red-600'">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <span class="text-sm font-bold bg-blue-900 text-blue-300 px-2 py-1 rounded" x-text="tf"></span>
-                                            <span class="text-sm font-bold px-2 py-1 rounded"
-                                                  :class="signal.direction === 'long' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'"
-                                                  x-text="signal.direction === 'long' ? '做多' : '做空'"></span>
-                                        </div>
-                                        <div class="grid grid-cols-2 gap-2 text-sm">
-                                            <div>
-                                                <p class="text-gray-400 text-xs">入场</p>
-                                                <p class="font-bold" x-text="signal.entry_price.toFixed(6)"></p>
-                                            </div>
-                                            <div>
-                                                <p class="text-gray-400 text-xs">止盈</p>
-                                                <p class="font-bold text-green-400" x-text="signal.take_profit ? signal.take_profit.toFixed(6) : '-'"></p>
-                                            </div>
-                                        </div>
-                                        <div class="mt-2 text-xs">
-                                            <p class="text-gray-400">信心度: <span class="font-bold" :class="signal.confidence >= 70 ? 'text-green-400' : 'text-yellow-400'" x-text="signal.confidence.toFixed(1) + '%'"></span></p>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </div>
         </div>
     </div>
 
@@ -384,7 +246,7 @@
             testingConnection: false,
             selectedExchange: 'binance',
             selectedTimeframe: '1h',
-            scanLimit: 50,
+            scanLimit: 500,
             signals: [],
             scanStats: {
                 scanned: 0,
@@ -397,24 +259,11 @@
                 connected: false
             },
 
-            // 监测模式相关
-            currentMode: 'scan',  // 'scan' 或 'monitor'
-            monitoringConnected: false,
-            monitoringSymbol: '',
-            monitoringExchange: 'binance',
-            selectedTimeframes: ['5m', '1h', '1d'],
-            addingMonitoring: false,
-            monitoringList: [],
-            monitoringSignals: {},
-            ws: null,
-
             // API配置
             apiBaseUrl: 'http://127.0.0.1:8080',
 
             init() {
                 this.testConnection();
-                // 启动WebSocket连接
-                this.connectWebSocket();
             },
 
             async testConnection() {
@@ -479,142 +328,6 @@
 
             toggleDetail(index) {
                 this.$set(this.showDetail, index, !this.showDetail[index]);
-            },
-
-            // ===== 监测模式相关方法 =====
-
-            connectWebSocket() {
-                const wsUrl = 'ws://127.0.0.1:8080/ws/monitoring';
-
-                this.ws = new WebSocket(wsUrl);
-
-                this.ws.onopen = () => {
-                    console.log('WebSocket连接成功');
-                    this.monitoringConnected = true;
-                };
-
-                this.ws.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-
-                    if (data.type === 'signal') {
-                        // 更新信号缓存
-                        const symbol = data.symbol;
-                        const timeframe = data.timeframe;
-                        const signal = data.data;
-
-                        if (!this.monitoringSignals[symbol]) {
-                            this.monitoringSignals[symbol] = {};
-                        }
-                        this.monitoringSignals[symbol][timeframe] = signal;
-
-                        // 提示有新信号
-                        console.log(`新信号: ${symbol} ${timeframe} ${signal.direction}`);
-                    }
-                };
-
-                this.ws.onclose = () => {
-                    console.log('WebSocket连接断开');
-                    this.monitoringConnected = false;
-
-                    // 5秒后重新连接
-                    setTimeout(() => {
-                        this.connectWebSocket();
-                    }, 5000);
-                };
-
-                this.ws.onerror = (error) => {
-                    console.error('WebSocket错误:', error);
-                };
-            },
-
-            async addMonitoring() {
-                if (!this.monitoringSymbol) {
-                    alert('请输入合约符号');
-                    return;
-                }
-
-                this.addingMonitoring = true;
-
-                try {
-                    const response = await fetch(this.apiBaseUrl + '/api/monitoring/add', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            symbol: this.monitoringSymbol,
-                            exchange: this.monitoringExchange,
-                            timeframes: this.selectedTimeframes.length > 0 ? this.selectedTimeframes : ['5m', '1h', '1d']
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (data.success) {
-                        alert(data.message);
-                        this.monitoringSymbol = '';
-                        await this.refreshMonitoring();
-                    } else {
-                        alert('添加失败: ' + data.message);
-                    }
-                } catch (error) {
-                    alert('添加失败: ' + error.message);
-                } finally {
-                    this.addingMonitoring = false;
-                }
-            },
-
-            async removeMonitoring(symbol) {
-                if (!confirm(`确定要移除 ${symbol} 的监测吗？`)) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch(this.apiBaseUrl + `/api/monitoring/remove?symbol=${encodeURIComponent(symbol)}`, {
-                        method: 'POST'
-                    });
-
-                    const data = await response.json();
-
-                    if (data.success) {
-                        alert(data.message);
-                        await this.refreshMonitoring();
-                    } else {
-                        alert('移除失败: ' + data.message);
-                    }
-                } catch (error) {
-                    alert('移除失败: ' + error.message);
-                }
-            },
-
-            async refreshMonitoring() {
-                try {
-                    const response = await fetch(this.apiBaseUrl + '/api/monitoring/list');
-                    const data = await response.json();
-
-                    if (data.success) {
-                        this.monitoringList = data.symbols;
-                    } else {
-                        alert('获取监测列表失败: ' + data.message);
-                    }
-
-                    // 同时获取最新信号
-                    const signalResponse = await fetch(this.apiBaseUrl + '/api/monitoring/signals');
-                    const signalData = await signalResponse.json();
-
-                    if (signalData.success) {
-                        this.monitoringSignals = signalData.signals;
-                    }
-                } catch (error) {
-                    console.error('刷新监测失败:', error);
-                }
-            },
-
-            toggleTimeframe(tf) {
-                const index = this.selectedTimeframes.indexOf(tf);
-                if (index > -1) {
-                    this.selectedTimeframes.splice(index, 1);
-                } else {
-                    this.selectedTimeframes.push(tf);
-                }
             }
         };
     }
