@@ -74,14 +74,14 @@ class SignalGenerator:
 
         # 生成信号
         signal = self._generate_trade_signal(
-            recent_fvg, liquidity, liquidity_zones, current_price, ticker, ohlcv
+            recent_fvg, liquidity, liquidity_zones, current_price, ticker, ohlcv, orderbook
         )
 
         return signal
 
     def _generate_trade_signal(self, fvg_list: List, liquidity: Dict,
                                liquidity_zones: List, current_price: float,
-                               ticker: Dict, ohlcv: List) -> Dict:
+                               ticker: Dict, ohlcv: List, orderbook: Dict) -> Dict:
         """
         生成交易信号（入场、止盈、止损）
 
@@ -92,6 +92,7 @@ class SignalGenerator:
             current_price: 当前价格
             ticker: 行情数据
             ohlcv: K线数据
+            orderbook: 订单簿数据
 
         Returns:
             交易信号
