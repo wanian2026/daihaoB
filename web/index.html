@@ -408,6 +408,9 @@
             monitoringSignals: {},
             ws: null,
 
+            // API配置
+            apiBaseUrl: 'http://127.0.0.1:8080',
+
             init() {
                 this.testConnection();
                 // 启动WebSocket连接
@@ -418,7 +421,7 @@
                 this.testingConnection = true;
 
                 try {
-                    const response = await fetch('/api/test-connection', {
+                    const response = await fetch(this.apiBaseUrl + '/api/test-connection', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -445,7 +448,7 @@
                 this.signals = [];
 
                 try {
-                    const response = await fetch('/api/scan?limit=' + this.scanLimit, {
+                    const response = await fetch(this.apiBaseUrl + '/api/scan?limit=' + this.scanLimit, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -481,8 +484,7 @@
             // ===== 监测模式相关方法 =====
 
             connectWebSocket() {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws/monitoring`;
+                const wsUrl = 'ws://127.0.0.1:8080/ws/monitoring';
 
                 this.ws = new WebSocket(wsUrl);
 
@@ -534,7 +536,7 @@
                 this.addingMonitoring = true;
 
                 try {
-                    const response = await fetch('/api/monitoring/add', {
+                    const response = await fetch(this.apiBaseUrl + '/api/monitoring/add', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -566,7 +568,7 @@
                 }
 
                 try {
-                    const response = await fetch(`/api/monitoring/remove?symbol=${encodeURIComponent(symbol)}`, {
+                    const response = await fetch(this.apiBaseUrl + `/api/monitoring/remove?symbol=${encodeURIComponent(symbol)}`, {
                         method: 'POST'
                     });
 
@@ -585,7 +587,7 @@
 
             async refreshMonitoring() {
                 try {
-                    const response = await fetch('/api/monitoring/list');
+                    const response = await fetch(this.apiBaseUrl + '/api/monitoring/list');
                     const data = await response.json();
 
                     if (data.success) {
@@ -595,7 +597,7 @@
                     }
 
                     // 同时获取最新信号
-                    const signalResponse = await fetch('/api/monitoring/signals');
+                    const signalResponse = await fetch(this.apiBaseUrl + '/api/monitoring/signals');
                     const signalData = await signalResponse.json();
 
                     if (signalData.success) {

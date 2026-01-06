@@ -2,7 +2,9 @@
 交易所工厂类
 """
 from typing import Optional
+import os
 from .binance import BinanceExchange
+from .mock import MockExchange
 
 
 class ExchangeFactory:
@@ -24,9 +26,15 @@ class ExchangeFactory:
         Returns:
             交易所实例
         """
+        # 检查是否使用Mock模式（用于测试和演示）
+        use_mock = os.getenv('USE_MOCK_EXCHANGE', 'false').lower() in ('true', '1', 'yes')
+
         exchange_name = exchange_name.lower()
 
-        if exchange_name == 'binance':
+        if use_mock:
+            # 使用Mock交易所
+            exchange = MockExchange(api_key, secret, testnet, password)
+        elif exchange_name == 'binance':
             exchange = BinanceExchange(api_key, secret, testnet, password)
         else:
             raise ValueError(f"不支持的交易所: {exchange_name}，仅支持 binance")
