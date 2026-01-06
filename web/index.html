@@ -86,7 +86,7 @@
     </div>
 
     <!-- 扫描统计 -->
-    <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-5 gap-4 mb-6">
         <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
             <p class="text-xs text-gray-400 uppercase">已扫描</p>
             <p class="text-2xl font-bold mt-1" x-text="scanStats.scanned || 0"></p>
@@ -98,6 +98,10 @@
         <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
             <p class="text-xs text-gray-400 uppercase">最高信心</p>
             <p class="text-2xl font-bold mt-1" x-text="scanStats.max_confidence ? scanStats.max_confidence.toFixed(1) + '%' : '-'"></p>
+        </div>
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
+            <p class="text-xs text-gray-400 uppercase">K线周期</p>
+            <p class="text-2xl font-bold mt-1 text-blue-400" x-text="scanStats.timeframe || selectedTimeframe"></p>
         </div>
         <div class="bg-gray-800 border border-gray-700 p-4 rounded-lg">
             <p class="text-xs text-gray-400 uppercase">扫描时间</p>
@@ -131,6 +135,7 @@
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
                             <span class="text-2xl font-bold" x-text="signal.symbol"></span>
+                            <span class="px-3 py-1 rounded text-xs font-bold bg-blue-900 text-blue-300" x-text="'📊 ' + signal.timeframe"></span>
                             <span class="px-3 py-1 rounded text-xs font-bold"
                                   :class="signal.direction === 'long' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'"
                                   x-text="signal.direction === 'long' ? '📈 做多' : '📉 做空'"></span>

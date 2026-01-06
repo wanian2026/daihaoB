@@ -35,7 +35,11 @@ class ContractScanner:
         Returns:
             信号列表（按信心度排序）
         """
-        print(f"开始扫描 {self.exchange_name} 合约（{self.timeframe}周期）...")
+        print(f"=" * 60)
+        print(f"🔍 开始扫描 {self.exchange_name} 合约")
+        print(f"📊 K线周期: {self.timeframe}")
+        print(f"⏱️  时间戳范围: 前{100}根{self.timeframe}K线")
+        print(f"=" * 60)
 
         # 获取所有合约交易对
         symbols = self.exchange.get_futures_symbols()
@@ -51,6 +55,35 @@ class ContractScanner:
             try:
                 # 获取K线数据（使用配置的K线周期）
                 ohlcv = self.exchange.get_ohlcv(symbol, timeframe=self.timeframe, limit=100)
+
+                # 验证获取的K线数据
+                if ohlcv and len(ohlcv) > 1:
+                    time_span = (ohlcv[-1][0] - ohlcv[0][0]) / 1000  # 转换为秒
+                    if scanned_count == 0:  # 只在第一个合约打印验证信息
+                        print(f"\n📌 验证K线周期 ({symbol}):")
+                        print(f"   - 获取K线数量: {len(ohlcv)} 根")
+                        print(f"   - 第一根K线时间: {datetime.fromtimestamp(ohlcv[0][0]/1000).strftime('%Y-%m-%d %H:%M:%S')}")
+                        print(f"   - 最后一根K线时间: {datetime.fromtimestamp(ohlcv[-1][0]/1000).strftime('%Y-%m-%d %H:%M:%S')}")
+                        print(f"   - 时间跨度: {time_span/60:.1f} 分钟")
+
+                        # 验证周期是否正确
+                        expected_seconds = {
+                            '5m': 5 * 60,
+                            '15m': 15 * 60,
+                            '30m': 30 * 60,
+                            '1h': 60 * 60,
+                            '4h': 4 * 60 * 60,
+                            '1d': 24 * 60 * 60,
+                            '1w': 7 * 24 * 60 * 60
+                        }
+
+                        expected = expected_seconds.get(self.timeframe)
+                        if expected:
+                            avg_interval = time_span / (len(ohlcv) - 1)
+                            print(f"   - 期望周期间隔: {expected} 秒")
+                            print(f"   - 实际平均间隔: {avg_interval:.1f} 秒")
+                            print(f"   - 周期验证: {'✅ 正确' if abs(avg_interval - expected) < 60 else '❌ 异常'}")
+                        print()
 
                 # 获取当前价格
                 current_price = self.exchange.get_current_price(symbol)
