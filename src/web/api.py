@@ -1,17 +1,18 @@
 """
 合约扫描系统 API（使用公开API）
 """
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import json
 import os
 from datetime import datetime
 
 from exchanges import ExchangeFactory
 from scanner import ContractScanner
+from monitoring import MonitoringManager
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -34,6 +35,27 @@ app.add_middleware(
 class ExchangeConfig(BaseModel):
     exchange: str
     timeframe: str = "1h"  # K线周期
+
+class MonitoringConfig(BaseModel):
+    symbol: str  # 合约符号，如 BTC/USDT
+    exchange: str = "binance"  # 交易所
+    timeframes: Optional[List[str]] = None  # 监测周期，默认 ['5m', '1h', '1d']
+
+# ========== 监测管理器 ==========
+
+# 创建监测管理器实例
+monitoring_manager = MonitoringManager()
+
+# 启动时启动监测
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时执行"""
+    monitoring_manager.start()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时执行"""
+    monitoring_manager.stop()
 
 # ========== 主页路由 ==========
 
@@ -147,3 +169,183 @@ async def scan_contracts(config: ExchangeConfig, limit: int = Query(50, descript
             "message": str(e),
             "detail": error_detail
         }
+
+# ========== 监测接口 ==========
+
+@app.post("/api/monitoring/add")
+async def add_monitored_symbol(config: MonitoringConfig):
+    """
+    添加监测合约
+
+    Args:
+        config: 监测配置
+
+    Returns:
+        添加结果
+    """
+    try:
+        # 添加到监测管理器
+        success = monitoring_manager.add_symbol(
+            symbol=config.symbol,
+            exchange=config.exchange,
+            timeframes=config.timeframes
+        )
+
+        if success:
+            return {
+                "success": True,
+                "message": f"已添加监测合约: {config.symbol}",
+                "symbol": config.symbol,
+                "timeframes": config.timeframes or ['5m', '1h', '1d']
+            }
+        else:
+            return {"success": False, "message": "添加失败"}
+
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/monitoring/remove")
+async def remove_monitored_symbol(symbol: str = Query(..., description="合约符号")):
+    """
+    移除监测合约
+
+    Args:
+        symbol: 合约符号
+
+    Returns:
+        移除结果
+    """
+    try:
+        success = monitoring_manager.remove_symbol(symbol)
+
+        if success:
+            return {
+                "success": True,
+                "message": f"已移除监测合约: {symbol}"
+            }
+        else:
+            return {"success": False, "message": "合约不存在或未在监测中"}
+
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/monitoring/list")
+async def get_monitored_symbols():
+    """
+    获取监测合约列表
+
+    Returns:
+        监测合约列表
+    """
+    try:
+        symbols = monitoring_manager.get_monitored_symbols()
+        return {
+            "success": True,
+            "symbols": symbols,
+            "count": len(symbols)
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/monitoring/signals")
+async def get_latest_signals(symbol: Optional[str] = Query(None, description="合约符号，不指定则返回所有")):
+    """
+    获取最新监测信号
+
+    Args:
+        symbol: 合约符号（可选）
+
+    Returns:
+        信号列表
+    """
+    try:
+        signals = monitoring_manager.get_latest_signals(symbol)
+
+        # 转换信号格式（处理时间戳等）
+        for sym, timeframe_signals in signals.items():
+            for timeframe, signal in timeframe_signals.items():
+                if signal.get('fvg_info') and signal['fvg_info'].get('timestamp'):
+                    signal['fvg_info']['timestamp'] = datetime.fromtimestamp(
+                        signal['fvg_info']['timestamp'] / 1000
+                    ).strftime('%Y-%m-%d %H:%M:%S')
+
+        return {
+            "success": True,
+            "signals": signals,
+            "updated_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# ========== WebSocket 接口 ==========
+
+class ConnectionManager:
+    """WebSocket连接管理器"""
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        """广播消息给所有连接"""
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except:
+                disconnected.append(connection)
+
+        # 清理断开的连接
+        for conn in disconnected:
+            self.disconnect(conn)
+
+# 创建WebSocket连接管理器
+ws_manager = ConnectionManager()
+
+@app.websocket("/ws/monitoring")
+async def websocket_monitoring(websocket: WebSocket):
+    """
+    WebSocket监测信号推送
+
+    实时推送监测合约的信号更新
+    """
+    await ws_manager.connect(websocket)
+
+    # 注册回调函数
+    def signal_callback(symbol: str, timeframe: str, signal: dict):
+        """信号回调 - 用于实时推送"""
+        try:
+            # 只推送有效信号
+            if signal.get('has_signal'):
+                message = {
+                    "type": "signal",
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "data": signal
+                }
+                # 使用异步推送
+                import asyncio
+                asyncio.create_task(ws_manager.broadcast(message))
+        except Exception as e:
+            print(f"WebSocket推送失败: {e}")
+
+    # 注册回调
+    monitoring_manager.register_callback(signal_callback)
+
+    try:
+        while True:
+            # 保持连接
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+        # 注销回调
+        monitoring_manager.unregister_callback(signal_callback)
+    except Exception as e:
+        print(f"WebSocket错误: {e}")
+        ws_manager.disconnect(websocket)
+        monitoring_manager.unregister_callback(signal_callback)
