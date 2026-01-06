@@ -3,6 +3,7 @@
 整合 FVG 和流动性分析，生成交易信号
 """
 from typing import Dict, List, Optional
+import numpy as np
 from .fvg import FVGAnalyzer
 from .liquidity import LiquidityAnalyzer
 
@@ -13,6 +14,41 @@ class SignalGenerator:
     def __init__(self):
         self.fvg_analyzer = FVGAnalyzer()
         self.liquidity_analyzer = LiquidityAnalyzer()
+
+    def _calculate_atr(self, ohlcv: List, period: int = 14) -> Optional[float]:
+        """
+        计算平均真实波幅（ATR）
+
+        Args:
+            ohlcv: K线数据 [[timestamp, open, high, low, close, volume], ...]
+            period: ATR周期，默认14
+
+        Returns:
+            ATR值
+        """
+        if len(ohlcv) < period + 1:
+            return None
+
+        # 提取高低价
+        highs = np.array([candle[2] for candle in ohlcv])
+        lows = np.array([candle[3] for candle in ohlcv])
+        closes = np.array([candle[4] for candle in ohlcv])
+
+        # 计算真实波幅（TR）
+        tr_list = []
+        for i in range(1, len(ohlcv)):
+            high_low = highs[i] - lows[i]
+            high_close = abs(highs[i] - closes[i-1])
+            low_close = abs(lows[i] - closes[i-1])
+            tr = max(high_low, high_close, low_close)
+            tr_list.append(tr)
+
+        # 计算ATR（使用简单移动平均）
+        if len(tr_list) >= period:
+            atr = np.mean(tr_list[-period:])
+            return atr
+
+        return None
 
     def generate_signal(self, ohlcv: List, orderbook: Dict, current_price: float,
                        ticker: Dict) -> Dict:
@@ -75,6 +111,9 @@ class SignalGenerator:
             'liquidity_zones': liquidity_zones
         }
 
+        # 计算ATR，用于备用止盈方案
+        atr = self._calculate_atr(ohlcv)
+
         # 检查是否有有效的 FVG
         if not fvg_list:
             signal['reason'] = '未发现 FVG 机会'
@@ -112,12 +151,19 @@ class SignalGenerator:
                 if target_liquidity:
                     # 使用流动性密集区价格作为止盈价
                     signal['take_profit'] = target_liquidity['price']
-                    signal['take_profit_reason'] = f"流动性密集区（距离{target_liquidity['distance']:.2f}%）"
+                    signal['take_profit_reason'] = target_liquidity['reason']
                 else:
-                    # 备用方案：基于2:1盈亏比
+                    # 备用方案：基于ATR计算止盈价格
                     risk = signal['entry_price'] - signal['stop_loss']
-                    signal['take_profit'] = signal['entry_price'] + risk * 2.0
-                    signal['take_profit_reason'] = "固定盈亏比(2:1)"
+                    if atr and atr > 0:
+                        # 使用ATR的2.5倍作为止盈距离，确保止盈目标合理
+                        take_profit_distance = atr * 2.5
+                        signal['take_profit'] = signal['entry_price'] + take_profit_distance
+                        signal['take_profit_reason'] = f"ATR止损法(ATR:{atr:.2f}, 距离:{take_profit_distance:.2f})"
+                    else:
+                        # 如果没有ATR数据，使用固定的2.5:1盈亏比
+                        signal['take_profit'] = signal['entry_price'] + risk * 2.5
+                        signal['take_profit_reason'] = "固定盈亏比(2.5:1)"
 
                 # 如果价格已经在FVG上方，可以考虑更激进的入场价（FVG下沿附近）
                 if current_price > fvg_high:
@@ -152,12 +198,19 @@ class SignalGenerator:
                 if target_liquidity:
                     # 使用流动性密集区价格作为止盈价
                     signal['take_profit'] = target_liquidity['price']
-                    signal['take_profit_reason'] = f"流动性密集区（距离{target_liquidity['distance']:.2f}%）"
+                    signal['take_profit_reason'] = target_liquidity['reason']
                 else:
-                    # 备用方案：基于2:1盈亏比
+                    # 备用方案：基于ATR计算止盈价格
                     risk = signal['stop_loss'] - signal['entry_price']
-                    signal['take_profit'] = signal['entry_price'] - risk * 2.0
-                    signal['take_profit_reason'] = "固定盈亏比(2:1)"
+                    if atr and atr > 0:
+                        # 使用ATR的2.5倍作为止盈距离，确保止盈目标合理
+                        take_profit_distance = atr * 2.5
+                        signal['take_profit'] = signal['entry_price'] - take_profit_distance
+                        signal['take_profit_reason'] = f"ATR止损法(ATR:{atr:.2f}, 距离:{take_profit_distance:.2f})"
+                    else:
+                        # 如果没有ATR数据，使用固定的2.5:1盈亏比
+                        signal['take_profit'] = signal['entry_price'] - risk * 2.5
+                        signal['take_profit_reason'] = "固定盈亏比(2.5:1)"
 
                 # 如果价格已经在FVG下方，可以考虑更激进的入场价（FVG上沿附近）
                 if current_price < fvg_low:

@@ -136,7 +136,10 @@ class LiquidityAnalyzer:
 
     def find_liquidity_zones(self, orderbook: Dict, current_price: float) -> List[Dict]:
         """
-        查找流动性区域（大量挂单的价格区间）
+        查找流动性区域（使用分段累积订单量方法）
+
+        将订单簿分成多个价格区间，计算每个区间的累积订单量，
+        找到订单量最大的几个区间作为流动性密集区。
 
         Args:
             orderbook: 订单簿
@@ -152,54 +155,88 @@ class LiquidityAnalyzer:
 
         # 分析买单流动性
         if bids:
-            # 计算买单的平均量和标准差
-            bid_amounts = [bid[1] for bid in bids]
-            mean_bid = np.mean(bid_amounts)
-            std_bid = np.std(bid_amounts)
-
-            # 查找异常大的买单
-            threshold = mean_bid + 2 * std_bid
-
-            for bid in bids:
-                if bid[1] > threshold:
-                    zones.append({
-                        'type': 'buy',
-                        'price': bid[0],
-                        'volume': bid[1],
-                        'distance': (current_price - bid[0]) / current_price * 100  # 距离百分比
-                    })
+            # 将买单分成多个区间（每5档一个区间）
+            bid_zones = self._analyze_liquidity_by_zones(bids, current_price, 'buy')
+            zones.extend(bid_zones)
 
         # 分析卖单流动性
         if asks:
-            # 计算卖单的平均量和标准差
-            ask_amounts = [ask[1] for ask in asks]
-            mean_ask = np.mean(ask_amounts)
-            std_ask = np.std(ask_amounts)
+            # 将卖单分成多个区间（每5档一个区间）
+            ask_zones = self._analyze_liquidity_by_zones(asks, current_price, 'sell')
+            zones.extend(ask_zones)
 
-            # 查找异常大的卖单
-            threshold = mean_ask + 2 * std_ask
+        # 按订单量排序（优先选择订单量大的）
+        zones.sort(key=lambda x: x['volume'], reverse=True)
 
-            for ask in asks:
-                if ask[1] > threshold:
-                    zones.append({
-                        'type': 'sell',
-                        'price': ask[0],
-                        'volume': ask[1],
-                        'distance': (ask[0] - current_price) / current_price * 100
-                    })
+        return zones[:10]  # 返回订单量最大的10个流动性区域
 
-        # 按距离排序
-        zones.sort(key=lambda x: abs(x['distance']))
+    def _analyze_liquidity_by_zones(self, orders: List, current_price: float,
+                                     order_type: str) -> List[Dict]:
+        """
+        将订单分成多个区间，分析每个区间的累积订单量
 
-        return zones[:5]  # 返回最近的5个流动性区域
+        Args:
+            orders: 订单列表 [[price, amount], ...]
+            current_price: 当前价格
+            order_type: 订单类型 'buy' 或 'sell'
+
+        Returns:
+            流动性区域列表
+        """
+        if not orders:
+            return []
+
+        # 每个区间包含5档订单
+        zone_size = 5
+        zones = []
+
+        # 将订单分成多个区间
+        for i in range(0, len(orders), zone_size):
+            zone_orders = orders[i:i + zone_size]
+
+            if not zone_orders:
+                continue
+
+            # 计算该区间的累积订单量
+            total_volume = sum([order[1] for order in zone_orders])
+
+            # 计算该区间的平均价格（使用成交量加权平均）
+            total_value = sum([order[0] * order[1] for order in zone_orders])
+            avg_price = total_value / total_volume if total_volume > 0 else zone_orders[0][0]
+
+            # 计算距离
+            if order_type == 'buy':
+                distance = (current_price - avg_price) / current_price * 100
+            else:
+                distance = (avg_price - current_price) / current_price * 100
+
+            zones.append({
+                'type': order_type,
+                'price': avg_price,
+                'volume': total_volume,
+                'distance': distance,
+                'order_count': len(zone_orders)
+            })
+
+        # 只保留订单量较大的区间（超过平均值的1.5倍）
+        if zones:
+            avg_volume = np.mean([z['volume'] for z in zones])
+            zones = [z for z in zones if z['volume'] > avg_volume * 1.5]
+
+        return zones
 
     def find_target_liquidity_zone(self, orderbook: Dict, current_price: float,
                                     direction: str) -> Optional[Dict]:
         """
         查找目标方向的流动性密集区（用于止盈）
 
-        做多时：查找上方最近的卖单流动性密集区
-        做空时：查找下方最近的买单流动性密集区
+        策略：
+        1. 在止盈方向查找多个流动性密集区
+        2. 综合考虑距离和订单量，选择最佳的止盈位置
+        3. 优先选择订单量大且距离合理的区域
+
+        做多时：查找上方的卖单流动性密集区
+        做空时：查找下方的买单流动性密集区
 
         Args:
             orderbook: 订单簿
@@ -217,22 +254,91 @@ class LiquidityAnalyzer:
         # 根据方向筛选流动性区域
         if direction == 'long':
             # 做多：查找上方的卖单流动性密集区
-            sell_zones = [z for z in liquidity_zones if z['type'] == 'sell' and z['price'] > current_price]
+            target_zones = [z for z in liquidity_zones if z['type'] == 'sell' and z['price'] > current_price]
 
-            if not sell_zones:
+            if not target_zones:
                 return None
 
-            # 返回最近的卖单流动性密集区
-            return min(sell_zones, key=lambda x: x['distance'])
+            # 计算每个区域的得分（综合考虑订单量和距离）
+            # 订单量越大越好，但太近或太远都不好
+            scored_zones = []
+            for zone in target_zones:
+                distance = zone['distance']
+                volume = zone['volume']
+
+                # 距离得分：最佳距离是 0.5% - 3%
+                if 0.5 <= distance <= 3.0:
+                    distance_score = 1.0
+                elif 0.3 <= distance <= 5.0:
+                    distance_score = 0.7
+                else:
+                    distance_score = 0.4
+
+                # 归一化订单量得分
+                max_volume = max([z['volume'] for z in target_zones])
+                volume_score = volume / max_volume if max_volume > 0 else 0
+
+                # 综合得分（距离权重60%，订单量权重40%）
+                total_score = distance_score * 0.6 + volume_score * 0.4
+
+                scored_zones.append({
+                    **zone,
+                    'score': total_score
+                })
+
+            # 返回得分最高的区域
+            if scored_zones:
+                best_zone = max(scored_zones, key=lambda x: x['score'])
+                return {
+                    'price': best_zone['price'],
+                    'distance': best_zone['distance'],
+                    'volume': best_zone['volume'],
+                    'score': best_zone['score'],
+                    'reason': f'流动性密集区（订单量:{best_zone["volume"]:.0f}, 距离:{best_zone["distance"]:.2f}%, 得分:{best_zone["score"]:.2f}）'
+                }
 
         elif direction == 'short':
             # 做空：查找下方的买单流动性密集区
-            buy_zones = [z for z in liquidity_zones if z['type'] == 'buy' and z['price'] < current_price]
+            target_zones = [z for z in liquidity_zones if z['type'] == 'buy' and z['price'] < current_price]
 
-            if not buy_zones:
+            if not target_zones:
                 return None
 
-            # 返回最近的买单流动性密集区
-            return min(buy_zones, key=lambda x: abs(x['distance']))
+            # 计算每个区域的得分
+            scored_zones = []
+            for zone in target_zones:
+                distance = abs(zone['distance'])
+                volume = zone['volume']
+
+                # 距离得分：最佳距离是 0.5% - 3%
+                if 0.5 <= distance <= 3.0:
+                    distance_score = 1.0
+                elif 0.3 <= distance <= 5.0:
+                    distance_score = 0.7
+                else:
+                    distance_score = 0.4
+
+                # 归一化订单量得分
+                max_volume = max([z['volume'] for z in target_zones])
+                volume_score = volume / max_volume if max_volume > 0 else 0
+
+                # 综合得分
+                total_score = distance_score * 0.6 + volume_score * 0.4
+
+                scored_zones.append({
+                    **zone,
+                    'score': total_score
+                })
+
+            # 返回得分最高的区域
+            if scored_zones:
+                best_zone = max(scored_zones, key=lambda x: x['score'])
+                return {
+                    'price': best_zone['price'],
+                    'distance': abs(best_zone['distance']),
+                    'volume': best_zone['volume'],
+                    'score': best_zone['score'],
+                    'reason': f'流动性密集区（订单量:{best_zone["volume"]:.0f}, 距离:{abs(best_zone["distance"]):.2f}%, 得分:{best_zone["score"]:.2f}）'
+                }
 
         return None
